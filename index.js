@@ -16,15 +16,26 @@ app.use(
       "https://www.feasibilityengine.com"
     ],
     methods: ["GET", "POST", "OPTIONS"],
-    allowedHeaders: ["Content-Type"]
+    allowedHeaders: ["Content-Type"],
+    credentials: false
   })
 );
+
+// 🔴 PRE-FLIGHT FIX (KRİTİK)
+app.options("*", cors());
 
 /* ===============================
    CONFIG
 ================================ */
 const PORT = process.env.PORT || 10000;
 const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
+
+/* ===============================
+   HEALTH CHECK (RENDER İÇİN ŞART)
+================================ */
+app.get("/", (req, res) => {
+  res.status(200).send("OK");
+});
 
 /* =========================================================
    🔒 BAĞLAYICI SİSTEM TALİMATLARI
@@ -51,11 +62,6 @@ ${SYSTEM_CONSTRAINTS}
 
 [DECISION STRESS TEST ENGINE — v2.1]
 
-Bu analiz bir eleme mekanizması değildir.
-Amaç fikri öldürmek ya da yaşatmak değil,
-kullanıcının fark etmediği varsayımları
-acımasız biçimde görünür kılmaktır.
-
 ROLÜN:
 Sen bir karar stres analiz motorusun.
 
@@ -66,15 +72,7 @@ C. Aşırı İyimserlik Alanları
 D. Görmezden Gelinen Riskler
 
 KAPANIŞ:
-Kullanıcıya şunu açıkça sor:
 “Bu fikir için gerçeklik testine geçmek istiyor musun?”
-
-Sunulacak seçenekler:
-1. Aynı metinle devam et
-2. Metni revize edip detaylandırarak devam et
-
-Dil:
-Soğuk, net, yargısız.
 
 KULLANICI GİRDİSİ:
 {{USER_INPUT}}
@@ -88,28 +86,16 @@ ${SYSTEM_CONSTRAINTS}
 
 [REALITY COLLISION ENGINE — v1.0]
 
-Bu analiz yalnızca
-kullanıcının bilinçli olarak
-gerçeklik testi talep etmesi durumunda yapılır.
-
 ROLÜN:
 Gerçek dünyanın yapısal baskılarını
 fikrin üzerine çarpıştıran bir motordur.
 
 ANALİZ ÇERÇEVESİ:
 A. Yapısal Gerçeklik Katmanları
-B. Aynı Anda Çalışması Gereken Minimum Koşullar
-C. Sistemik Sıkışma Noktaları
+B. Minimum Koşullar
+C. Sistemik Sıkışmalar
 D. Yanılsama Riskleri
 E. Kırılma Senaryoları
-F. Koşullu Hayatta Kalabilirlik
-
-SONUÇ:
-Fikrin gerçek dünyada hangi şartlar altında
-ayakta kalabileceğini ya da kalamayacağını netleştir.
-
-Dil:
-Soğuk, yapısal, tarafsız.
 
 KULLANICI GİRDİSİ:
 {{USER_INPUT}}
@@ -142,15 +128,13 @@ app.post("/decision-stress-test", async (req, res) => {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: "text is required" });
 
-    const prompt = DECISION_STRESS_TEST_PROMPT.replace(
-      "{{USER_INPUT}}",
-      text
-    );
+    const prompt = DECISION_STRESS_TEST_PROMPT.replace("{{USER_INPUT}}", text);
     const result = await callGemini(prompt);
 
     res.json({ result });
   } catch (err) {
-    res.status(500).json({ error: "Internal error" });
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -159,15 +143,13 @@ app.post("/reality-collision", async (req, res) => {
     const { text } = req.body;
     if (!text) return res.status(400).json({ error: "text is required" });
 
-    const prompt = REALITY_COLLISION_PROMPT.replace(
-      "{{USER_INPUT}}",
-      text
-    );
+    const prompt = REALITY_COLLISION_PROMPT.replace("{{USER_INPUT}}", text);
     const result = await callGemini(prompt);
 
     res.json({ result });
   } catch (err) {
-    res.status(500).json({ error: "Internal error" });
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
