@@ -1,9 +1,28 @@
 import express from "express";
 import fetch from "node-fetch";
+import cors from "cors";
 
 const app = express();
+
+/* ===============================
+   MIDDLEWARE
+================================ */
 app.use(express.json());
 
+app.use(
+  cors({
+    origin: [
+      "https://feasibilityengine.com",
+      "https://www.feasibilityengine.com"
+    ],
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type"]
+  })
+);
+
+/* ===============================
+   CONFIG
+================================ */
 const PORT = process.env.PORT || 10000;
 const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
 
@@ -106,9 +125,7 @@ async function callGemini(prompt) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: [
-          { role: "user", parts: [{ text: prompt }] }
-        ]
+        contents: [{ role: "user", parts: [{ text: prompt }] }]
       })
     }
   );
@@ -120,25 +137,38 @@ async function callGemini(prompt) {
 /* =========================================================
    ROUTES
 ========================================================= */
-
 app.post("/decision-stress-test", async (req, res) => {
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: "text is required" });
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: "text is required" });
 
-  const prompt = DECISION_STRESS_TEST_PROMPT.replace("{{USER_INPUT}}", text);
-  const result = await callGemini(prompt);
+    const prompt = DECISION_STRESS_TEST_PROMPT.replace(
+      "{{USER_INPUT}}",
+      text
+    );
+    const result = await callGemini(prompt);
 
-  res.json({ result });
+    res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 app.post("/reality-collision", async (req, res) => {
-  const { text } = req.body;
-  if (!text) return res.status(400).json({ error: "text is required" });
+  try {
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: "text is required" });
 
-  const prompt = REALITY_COLLISION_PROMPT.replace("{{USER_INPUT}}", text);
-  const result = await callGemini(prompt);
+    const prompt = REALITY_COLLISION_PROMPT.replace(
+      "{{USER_INPUT}}",
+      text
+    );
+    const result = await callGemini(prompt);
 
-  res.json({ result });
+    res.json({ result });
+  } catch (err) {
+    res.status(500).json({ error: "Internal error" });
+  }
 });
 
 /* =========================================================
