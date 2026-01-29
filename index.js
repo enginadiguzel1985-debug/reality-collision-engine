@@ -1,5 +1,5 @@
 import express from "express";
-import fetch from "node-fetch"; 
+import fetch from "node-fetch";
 import cors from "cors";
 
 const app = express();
@@ -19,13 +19,13 @@ app.use(
     credentials: false
   })
 );
-app.options("*", cors());
 
-/* ===============================
-   CONFIG
-================================ */
 const PORT = process.env.PORT || 10000;
-const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
+const SHOPIFY_STORE = "feasibility-engine.myshopify.com"; // mağaza domain
+const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
+const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
+const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES;
+const SHOPIFY_REDIRECT_URI = process.env.SHOPIFY_REDIRECT_URI;
 
 /* ===============================
    HEALTH CHECK
@@ -33,51 +33,31 @@ const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
 app.get("/", (req, res) => res.status(200).send("OK"));
 
 /* =========================================================
-   TEST ROUTE
+   METAFIELD WRITE — NODE / SHOPIFY ADMIN API
 ========================================================= */
-app.get("/test", (req, res) => res.send("Backend çalışıyor"));
-
-/* =========================================================
-   GEMINI CALL
-========================================================= */
-async function callGemini(prompt) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }]
-      })
+app.post("/write-metafield", async (req, res) => {
+  try {
+    const { productId, namespace, key, value, type } = req.body;
+    if (!productId || !namespace || !key || !value || !type) {
+      return res.status(400).json({ error: "Missing required fields" });
     }
-  );
-  const data = await response.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "No output";
-}
 
-/* =========================================================
-   ROUTES
-========================================================= */
-app.post("/decision-stress-test", async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "text is required" });
-    const prompt = text; // Kendi prompt’unu buraya ekleyebilirsin
-    const result = await callGemini(prompt);
-    res.json({ result });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
+    const url = `https://${SHOPIFY_STORE}/admin/api/2026-01/products/${productId}/metafields.json`;
+    const body = {
+      metafield: { namespace, key, value, type }
+    };
 
-app.post("/reality-collision", async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "text is required" });
-    const prompt = text; // Kendi prompt’unu buraya ekleyebilirsin
-    const result = await callGemini(prompt);
-    res.json({ result });
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": SHOPIFY_CLIENT_SECRET
+      },
+      body: JSON.stringify(body)
+    });
+
+    const data = await response.json();
+    res.json(data);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -85,6 +65,6 @@ app.post("/reality-collision", async (req, res) => {
 });
 
 /* =========================================================
-   SERVER
+   SERVER START
 ========================================================= */
 app.listen(PORT, () => console.log("Server running on port", PORT));
