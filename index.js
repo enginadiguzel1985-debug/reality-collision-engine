@@ -1,6 +1,7 @@
 import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
+import querystring from "querystring";
 
 const app = express();
 
@@ -8,7 +9,6 @@ const app = express();
    MIDDLEWARE
 ================================ */
 app.use(express.json());
-
 app.use(
   cors({
     origin: [
@@ -20,142 +20,89 @@ app.use(
     credentials: false
   })
 );
-
-// 🔴 PRE-FLIGHT FIX (KRİTİK)
 app.options("*", cors());
 
 /* ===============================
    CONFIG
 ================================ */
 const PORT = process.env.PORT || 10000;
-const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
+const SHOPIFY_CLIENT_ID = process.env.SHOPIFY_CLIENT_ID;
+const SHOPIFY_CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET;
+const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES;
+const SHOPIFY_REDIRECT_URI = process.env.SHOPIFY_REDIRECT_URI;
 
 /* ===============================
-   HEALTH CHECK (RENDER İÇİN ŞART)
+   SHOPIFY OAUTH START
 ================================ */
-app.get("/", (req, res) => {
-  res.status(200).send("OK");
+app.get("/auth", (req, res) => {
+  const shop = req.query.shop;
+  if (!shop) return res.status(400).send("Missing shop parameter");
+  const redirect = `https://${shop}/admin/oauth/authorize?${querystring.stringify({
+    client_id: SHOPIFY_CLIENT_ID,
+    scope: SHOPIFY_SCOPES,
+    redirect_uri: SHOPIFY_REDIRECT_URI,
+    state: "nonce123", // basit nonce, production’da random olmalı
+    grant_options: ["per-user"]
+  })}`;
+  res.redirect(redirect);
 });
 
-/* =========================================================
-   🔒 BAĞLAYICI SİSTEM TALİMATLARI
-========================================================= */
-const SYSTEM_CONSTRAINTS = `
-BU TALİMATLAR BAĞLAYICIDIR.
-Bu çerçevenin dışına çıkan cevap GEÇERSİZDİR.
+/* ===============================
+   SHOPIFY OAUTH CALLBACK
+================================ */
+app.get("/auth/callback", async (req, res) => {
+  const { shop, code } = req.query;
+  if (!shop || !code) return res.status(400).send("Missing parameters");
 
-- Yumuşatma yok
-- Motive etme yok
-- Yol gösterme yok
-- Alternatif üretme yok
-- Öğretmenlik yok
+  const tokenResp = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: SHOPIFY_CLIENT_ID,
+      client_secret: SHOPIFY_CLIENT_SECRET,
+      code
+    })
+  });
+  const data = await tokenResp.json();
+  const accessToken = data.access_token;
 
-Amaç:
-Kullanıcının fark etmediği gerçekleri görünür kılmak.
-`;
+  // Ekrana basit mesaj
+  res.send("Shopify OAuth tamamlandı, access token alındı.");
 
-/* =========================================================
-   DECISION STRESS TEST ENGINE — v2.1
-========================================================= */
-const DECISION_STRESS_TEST_PROMPT = `
-${SYSTEM_CONSTRAINTS}
+  // Burada accessToken’ı güvenli yerde sakla
+});
 
-[DECISION STRESS TEST ENGINE — v2.1]
+/* ===============================
+   METAFIELD WRITE (Shopify Admin API)
+================================ */
+app.post("/write-metafield", async (req, res) => {
+  try {
+    const { shop, access_token, namespace, key, value, value_type } = req.body;
 
-ROLÜN:
-Sen bir karar stres analiz motorusun.
-
-ANALİZ ÇERÇEVESİ:
-A. Varsayımlar
-B. Kör Noktalar
-C. Aşırı İyimserlik Alanları
-D. Görmezden Gelinen Riskler
-
-KAPANIŞ:
-“Bu fikir için gerçeklik testine geçmek istiyor musun?”
-
-KULLANICI GİRDİSİ:
-{{USER_INPUT}}
-`;
-
-/* =========================================================
-   REALITY COLLISION ENGINE — v1.0
-========================================================= */
-const REALITY_COLLISION_PROMPT = `
-${SYSTEM_CONSTRAINTS}
-
-[REALITY COLLISION ENGINE — v1.0]
-
-ROLÜN:
-Gerçek dünyanın yapısal baskılarını
-fikrin üzerine çarpıştıran bir motordur.
-
-ANALİZ ÇERÇEVESİ:
-A. Yapısal Gerçeklik Katmanları
-B. Minimum Koşullar
-C. Sistemik Sıkışmalar
-D. Yanılsama Riskleri
-E. Kırılma Senaryoları
-
-KULLANICI GİRDİSİ:
-{{USER_INPUT}}
-`;
-
-/* =========================================================
-   GEMINI CALL
-========================================================= */
-async function callGemini(prompt) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-    {
+    const resp = await fetch(`https://${shop}/admin/api/2026-01/metafields.json`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": access_token
+      },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }]
+        metafield: {
+          namespace,
+          key,
+          value,
+          type: value_type || "single_line_text_field"
+        }
       })
-    }
-  );
-
-  const data = await response.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || "No output";
-}
-
-/* =========================================================
-   ROUTES
-========================================================= */
-app.post("/decision-stress-test", async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "text is required" });
-
-    const prompt = DECISION_STRESS_TEST_PROMPT.replace("{{USER_INPUT}}", text);
-    const result = await callGemini(prompt);
-
-    res.json({ result });
+    });
+    const data = await resp.json();
+    res.json(data);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: "Metafield yazılamadı" });
   }
 });
 
-app.post("/reality-collision", async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: "text is required" });
-
-    const prompt = REALITY_COLLISION_PROMPT.replace("{{USER_INPUT}}", text);
-    const result = await callGemini(prompt);
-
-    res.json({ result });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-/* =========================================================
+/* ===============================
    SERVER
-========================================================= */
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+================================ */
+app.listen(PORT, () => console.log("Server running on port", PORT));
