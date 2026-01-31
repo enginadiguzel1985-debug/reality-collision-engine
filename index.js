@@ -1,44 +1,22 @@
 import express from "express";
-import fetch from "node-fetch";
 
 const app = express();
 app.use(express.json());
 
-const API_KEY = process.env.INTERNAL_API_KEY;
+// TRANSLATE endpoint devre dışı bırakıldı
+app.post("/translate", (req, res) => {
+  return res.status(403).json({ ok: false, error: "TRANSLATION_DISABLED" });
+});
 
-app.post("/translate", async (req, res) => {
-  try {
-    const { text } = req.body; // targetLanguage kaldırıldı
-    if (!text) {
-      return res.status(400).json({ ok: false, error: "TEXT_REQUIRED" });
-    }
+// Test ve kayıt endpointleri hâlâ çalışabilir
+app.get("/", (req, res) => {
+  res.json({ ok: true, message: "Server is running in English-only mode." });
+});
 
-    const response = await fetch(
-      `https://translation.googleapis.com/v3/projects/gen-lang-client-0366781740/locations/global:translateText?key=${API_KEY}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [text],
-          targetLanguageCode: "en", // hep İngilizce
-          mimeType: "text/plain",
-        }),
-      }
-    );
-
-    const data = await response.json();
-    if (!data.translations || data.translations.length === 0) {
-      return res.status(422).json({ ok: false, error: "TRANSLATION_FAILED" });
-    }
-
-    return res.json({
-      ok: true,
-      translatedText: data.translations[0].translatedText,
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ ok: false, error: "INTERNAL_ERROR" });
-  }
+// Örnek: test endpoint (gerekiyorsa ekle)
+app.post("/test", (req, res) => {
+  const { name } = req.body;
+  res.json({ ok: true, received: name || "No name provided" });
 });
 
 app.listen(process.env.PORT || 10000, () => console.log("Server running on port 10000"));
