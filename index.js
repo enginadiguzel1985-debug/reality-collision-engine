@@ -1,28 +1,45 @@
 import express from "express";
 import cors from "cors";
-import { TranslationServiceClient } from "@google-cloud/translate";
+import { Translate } from "@google-cloud/translate/build/src/v2/index.js";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-/**
- * Google Translate Client (v3)
- */
-const translateClient = new TranslationServiceClient();
+// ---------- GOOGLE CREDENTIALS (ENV'DEN) ----------
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
+  console.error("❌ GOOGLE_APPLICATION_CREDENTIALS_JSON ENV missing");
+  process.exit(1);
+}
 
-/**
- * Health check
- */
-app.get("/", (req, res) => {
-  res.json({ status: "ok", service: "reality-collision-engine" });
+let googleCredentials;
+try {
+  googleCredentials = JSON.parse(
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
+  );
+} catch (err) {
+  console.error("❌ Invalid GOOGLE_APPLICATION_CREDENTIALS_JSON");
+  process.exit(1);
+}
+
+// ---------- TRANSLATE CLIENT ----------
+const translate = new Translate({
+  credentials: {
+    client_email: googleCredentials.client_email,
+    private_key: googleCredentials.private_key,
+  },
+  projectId: googleCredentials.project_id,
 });
 
-/**
- * Detect language endpoint
- * POST /detect-language
- * Body: { "text": "Hello world" }
- */
+// ---------- HEALTH CHECK ----------
+app.get("/", (req, res) => {
+  res.json({
+    status: "ok",
+    service: "reality-collision-engine",
+  });
+});
+
+// ---------- DETECT LANGUAGE ----------
 app.post("/detect-language", async (req, res) => {
   try {
     const { text } = req.body;
@@ -30,34 +47,30 @@ app.post("/detect-language", async (req, res) => {
     if (!text || typeof text !== "string") {
       return res.status(400).json({
         ok: false,
-        error: "Text is required and must be a string"
+        error: "text field is required",
       });
     }
 
-    const [response] = await translateClient.detectLanguage({
-      parent: `projects/${process.env.GOOGLE_PROJECT_ID}/locations/global`,
-      content: text
-    });
+    const [detection] = await translate.detect(text);
 
-    const detection = response.languages[0];
+    const language = Array.isArray(detection)
+      ? detection[0].language
+      : detection.language;
 
     res.json({
       ok: true,
-      language: detection.languageCode,
-      confidence: detection.confidence
+      language,
     });
   } catch (err) {
-    console.error("Detect language error:", err);
+    console.error("❌ detect-language error:", err);
     res.status(500).json({
       ok: false,
-      error: err.message
+      error: "language detection failed",
     });
   }
 });
 
-/**
- * Port binding (Render compatible)
- */
+// ---------- SERVER ----------
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
