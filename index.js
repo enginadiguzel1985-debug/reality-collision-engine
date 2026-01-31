@@ -1,76 +1,72 @@
 import express from "express";
-import cors from "cors";
+import bodyParser from "body-parser";
 import { Translate } from "@google-cloud/translate/build/src/v2/index.js";
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+app.use(bodyParser.json());
 
-// ---------- GOOGLE CREDENTIALS (ENV'DEN) ----------
-if (!process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON) {
-  console.error("❌ GOOGLE_APPLICATION_CREDENTIALS_JSON ENV missing");
-  process.exit(1);
-}
+const translate = new Translate(); // default credentials
 
-let googleCredentials;
-try {
-  googleCredentials = JSON.parse(
-    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON
-  );
-} catch (err) {
-  console.error("❌ Invalid GOOGLE_APPLICATION_CREDENTIALS_JSON");
-  process.exit(1);
-}
-
-// ---------- TRANSLATE CLIENT ----------
-const translate = new Translate({
-  credentials: {
-    client_email: googleCredentials.client_email,
-    private_key: googleCredentials.private_key,
-  },
-  projectId: googleCredentials.project_id,
-});
-
-// ---------- HEALTH CHECK ----------
+// Health check
 app.get("/", (req, res) => {
   res.json({
     status: "ok",
-    service: "reality-collision-engine",
+    service: "reality-collision-engine"
   });
 });
 
-// ---------- DETECT LANGUAGE ----------
+// Language detection
 app.post("/detect-language", async (req, res) => {
   try {
     const { text } = req.body;
 
-    if (!text || typeof text !== "string") {
+    if (!text) {
       return res.status(400).json({
         ok: false,
-        error: "text field is required",
+        error: "text is required"
       });
     }
 
     const [detection] = await translate.detect(text);
 
-    const language = Array.isArray(detection)
-      ? detection[0].language
-      : detection.language;
-
     res.json({
       ok: true,
-      language,
+      language: detection.language
     });
   } catch (err) {
-    console.error("❌ detect-language error:", err);
     res.status(500).json({
       ok: false,
-      error: "language detection failed",
+      error: err.message
     });
   }
 });
 
-// ---------- SERVER ----------
+// 🔥 TRANSLATE – CORE ENDPOINT
+app.post("/translate", async (req, res) => {
+  try {
+    const { text, targetLanguage } = req.body;
+
+    if (!text || !targetLanguage) {
+      return res.status(400).json({
+        ok: false,
+        error: "text and targetLanguage are required"
+      });
+    }
+
+    const [translation] = await translate.translate(text, targetLanguage);
+
+    res.json({
+      ok: true,
+      translatedText: translation
+    });
+  } catch (err) {
+    res.status(500).json({
+      ok: false,
+      error: err.message
+    });
+  }
+});
+
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
