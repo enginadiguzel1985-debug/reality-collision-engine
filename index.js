@@ -4,7 +4,7 @@ import fetch from "node-fetch";
 const app = express();
 app.use(express.json());
 
-const API_KEY = "BURAYA_YENI_OLUSTURDUGUN_API_KEY"; // ← Buraya Google Cloud API Key'i yapıştır
+const API_KEY = "AIzaSyDMUS6O7EJfEo53Mdwj8TyqFstMXGY3flo"; // ← Buraya Google Cloud API Key'i yapıştır
 
 app.post("/translate", async (req, res) => {
   try {
