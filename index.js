@@ -3,8 +3,10 @@
  * Google Cloud Translation v3
  */
 
-const express = require("express");
-const { TranslationServiceClient } = require("@google-cloud/translate").v3;
+import express from "express";
+import pkg from "@google-cloud/translate";
+
+const { TranslationServiceClient } = pkg.v3;
 
 const app = express();
 app.use(express.json());
@@ -20,7 +22,6 @@ const translationClient = new TranslationServiceClient({
 
 /**
  * POST /detect-language
- * Body: { "text": "Hello world" }
  */
 app.post("/detect-language", async (req, res) => {
   try {
@@ -42,7 +43,7 @@ app.post("/detect-language", async (req, res) => {
 
     const [response] = await translationClient.detectLanguage(request);
 
-    if (!response.languages || response.languages.length === 0) {
+    if (!response.languages?.length) {
       return res.status(422).json({
         success: false,
         error: "LANGUAGE_NOT_DETECTED",
@@ -57,7 +58,7 @@ app.post("/detect-language", async (req, res) => {
       confidence: best.confidence,
     });
   } catch (err) {
-    console.error(err);
+    console.error("DETECT ERROR:", err);
     return res.status(500).json({
       success: false,
       error: "DETECTION_FAILED",
@@ -65,9 +66,6 @@ app.post("/detect-language", async (req, res) => {
   }
 });
 
-/**
- * Server start
- */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
