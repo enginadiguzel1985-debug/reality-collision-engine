@@ -1,102 +1,74 @@
-import express from "express";
-import fetch from "node-fetch";
+/**
+ * Production-ready language detection API
+ * Google Cloud Translation v3
+ */
+
+const express = require("express");
+const { TranslationServiceClient } = require("@google-cloud/translate").v3;
 
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
-const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
-
-if (!GEMINI_API_KEY) {
-  console.error("❌ GOOGLE_GEMINI_API_KEY tanımlı değil");
-  process.exit(1);
-}
-
 /**
- * HEALTH CHECK
+ * Google Auth (Service Account JSON)
  */
-app.get("/healthz", (req, res) => {
-  res.status(200).send("OK");
+const translationClient = new TranslationServiceClient({
+  keyFilename:
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    "backend/keys/google-translate.json",
 });
 
 /**
- * TEST ENDPOINT
- */
-app.get("/test", (req, res) => {
-  res.send("Backend çalışıyor");
-});
-
-/**
- * LANGUAGE DETECTION ENDPOINT
  * POST /detect-language
- * body: { "text": "..." }
+ * Body: { "text": "Hello world" }
  */
 app.post("/detect-language", async (req, res) => {
-  const { text } = req.body;
-
-  if (!text || typeof text !== "string") {
-    return res.status(400).json({
-      error: "text alanı zorunlu ve string olmalı",
-    });
-  }
-
   try {
-    const prompt = `
-You are a strict language detector.
+    const { text } = req.body;
 
-Task:
-- Detect the language of the following text.
-- Respond with ONLY the ISO 639-1 language code.
-- Do NOT explain.
-- Do NOT add punctuation.
-- Examples: en, tr, fr, de, es, ar, zh, ru, it, pt, ja
-
-Text:
-"""
-${text}
-"""
-`;
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-        }),
-      }
-    );
-
-    const data = await response.json();
-
-    const raw =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-    if (!raw) {
-      throw new Error("Gemini boş cevap döndü");
+    if (!text || typeof text !== "string") {
+      return res.status(400).json({
+        success: false,
+        error: "TEXT_REQUIRED",
+      });
     }
 
-    res.json({
-      language: raw.toLowerCase(),
+    const projectId = await translationClient.getProjectId();
+
+    const request = {
+      parent: `projects/${projectId}/locations/global`,
+      content: text,
+    };
+
+    const [response] = await translationClient.detectLanguage(request);
+
+    if (!response.languages || response.languages.length === 0) {
+      return res.status(422).json({
+        success: false,
+        error: "LANGUAGE_NOT_DETECTED",
+      });
+    }
+
+    const best = response.languages[0];
+
+    return res.json({
+      success: true,
+      language: best.languageCode,
+      confidence: best.confidence,
     });
   } catch (err) {
-    console.error("❌ detect-language hata:", err);
-    res.status(500).json({
-      error: "Dil tespiti başarısız",
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      error: "DETECTION_FAILED",
     });
   }
 });
 
 /**
- * SERVER START
+ * Server start
  */
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server ayakta: ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
