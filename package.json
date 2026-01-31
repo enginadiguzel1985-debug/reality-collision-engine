@@ -8,8 +8,8 @@
   },
   "dependencies": {
     "express": "^4.18.2",
-    "cors": "^2.8.5",
     "node-fetch": "^3.3.2",
-    "@google-cloud/translate": "^8.5.0"
+    "cors": "^2.8.5",
+    "@google-cloud/translate": "^8.0.0"
   }
 }
