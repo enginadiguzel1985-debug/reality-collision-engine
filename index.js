@@ -1,112 +1,102 @@
 import express from "express";
 import fetch from "node-fetch";
-import crypto from "crypto";
 
 const app = express();
+app.use(express.json());
+
 const PORT = process.env.PORT || 10000;
+const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
 
-/* ======================
-   ENV VARIABLES
-====================== */
-const {
-  SHOPIFY_CLIENT_ID,
-  SHOPIFY_CLIENT_SECRET,
-  SHOPIFY_SCOPES,
-  SHOPIFY_REDIRECT_URI,
-  SHOPIFY_ACCESS_TOKEN,
-  SHOPIFY_SHOP
-} = process.env;
+if (!GEMINI_API_KEY) {
+  console.error("❌ GOOGLE_GEMINI_API_KEY tanımlı değil");
+  process.exit(1);
+}
 
-/* ======================
-   BASIC HEALTH
-====================== */
-app.get("/", (req, res) => {
+/**
+ * HEALTH CHECK
+ */
+app.get("/healthz", (req, res) => {
+  res.status(200).send("OK");
+});
+
+/**
+ * TEST ENDPOINT
+ */
+app.get("/test", (req, res) => {
   res.send("Backend çalışıyor");
 });
 
-app.get("/test", (req, res) => {
-  res.send("Backend test OK");
-});
+/**
+ * LANGUAGE DETECTION ENDPOINT
+ * POST /detect-language
+ * body: { "text": "..." }
+ */
+app.post("/detect-language", async (req, res) => {
+  const { text } = req.body;
 
-/* ======================
-   SHOPIFY OAUTH START
-====================== */
-app.get("/auth", (req, res) => {
-  const shop = req.query.shop;
-  if (!shop) return res.status(400).send("Shop parametresi yok");
-
-  const state = crypto.randomBytes(16).toString("hex");
-
-  const installUrl =
-    `https://${shop}/admin/oauth/authorize` +
-    `?client_id=${SHOPIFY_CLIENT_ID}` +
-    `&scope=${SHOPIFY_SCOPES}` +
-    `&redirect_uri=${SHOPIFY_REDIRECT_URI}` +
-    `&state=${state}`;
-
-  console.log("➡️ Shopify OAuth başlatıldı:", installUrl);
-  res.redirect(installUrl);
-});
-
-/* ======================
-   SHOPIFY OAUTH CALLBACK
-====================== */
-app.get("/auth/callback", async (req, res) => {
-  const { shop, code } = req.query;
-
-  const tokenUrl = `https://${shop}/admin/oauth/access_token`;
-
-  const response = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: SHOPIFY_CLIENT_ID,
-      client_secret: SHOPIFY_CLIENT_SECRET,
-      code
-    })
-  });
-
-  const data = await response.json();
-
-  console.log("✅ ACCESS TOKEN ALINDI:");
-  console.log("SHOP:", shop);
-  console.log("TOKEN:", data.access_token);
-
-  res.send("OAuth tamamlandı. Console loglarını kontrol et.");
-});
-
-/* ======================
-   SHOP.JSON TEST ENDPOINT
-====================== */
-app.get("/shop-test", async (req, res) => {
-  try {
-    const url = `https://${SHOPIFY_SHOP}/admin/api/2024-01/shop.json`;
-
-    const response = await fetch(url, {
-      headers: {
-        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-        "Content-Type": "application/json"
-      }
+  if (!text || typeof text !== "string") {
+    return res.status(400).json({
+      error: "text alanı zorunlu ve string olmalı",
     });
+  }
 
-    const text = await response.text();
+  try {
+    const prompt = `
+You are a strict language detector.
 
-    // JSON parse edilemezse net görelim diye
-    try {
-      const json = JSON.parse(text);
-      res.json(json);
-    } catch {
-      res.status(500).send(text);
+Task:
+- Detect the language of the following text.
+- Respond with ONLY the ISO 639-1 language code.
+- Do NOT explain.
+- Do NOT add punctuation.
+- Examples: en, tr, fr, de, es, ar, zh, ru, it, pt, ja
+
+Text:
+"""
+${text}
+"""
+`;
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+        }),
+      }
+    );
+
+    const data = await response.json();
+
+    const raw =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (!raw) {
+      throw new Error("Gemini boş cevap döndü");
     }
 
+    res.json({
+      language: raw.toLowerCase(),
+    });
   } catch (err) {
-    res.status(500).send(err.message);
+    console.error("❌ detect-language hata:", err);
+    res.status(500).json({
+      error: "Dil tespiti başarısız",
+    });
   }
 });
 
-/* ======================
-   START SERVER
-====================== */
+/**
+ * SERVER START
+ */
 app.listen(PORT, () => {
   console.log(`🚀 Server ayakta: ${PORT}`);
 });
