@@ -6,12 +6,11 @@ app.use(express.json());
 
 const API_KEY = process.env.INTERNAL_API_KEY;
 
-
 app.post("/translate", async (req, res) => {
   try {
-    const { text, targetLanguage } = req.body;
-    if (!text || !targetLanguage) {
-      return res.status(400).json({ ok: false, error: "TEXT_AND_TARGET_REQUIRED" });
+    const { text } = req.body; // targetLanguage kaldırıldı
+    if (!text) {
+      return res.status(400).json({ ok: false, error: "TEXT_REQUIRED" });
     }
 
     const response = await fetch(
@@ -21,7 +20,7 @@ app.post("/translate", async (req, res) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [text],
-          targetLanguageCode: targetLanguage,
+          targetLanguageCode: "en", // hep İngilizce
           mimeType: "text/plain",
         }),
       }
