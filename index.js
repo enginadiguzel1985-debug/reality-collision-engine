@@ -1,73 +1,44 @@
 import express from "express";
-import bodyParser from "body-parser";
-import { Translate } from "@google-cloud/translate/build/src/v2/index.js";
+import fetch from "node-fetch";
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
 
-const translate = new Translate(); // default credentials
+const API_KEY = "BURAYA_YENI_OLUSTURDUGUN_API_KEY"; // ← Buraya Google Cloud API Key'i yapıştır
 
-// Health check
-app.get("/", (req, res) => {
-  res.json({
-    status: "ok",
-    service: "reality-collision-engine"
-  });
-});
-
-// Language detection
-app.post("/detect-language", async (req, res) => {
-  try {
-    const { text } = req.body;
-
-    if (!text) {
-      return res.status(400).json({
-        ok: false,
-        error: "text is required"
-      });
-    }
-
-    const [detection] = await translate.detect(text);
-
-    res.json({
-      ok: true,
-      language: detection.language
-    });
-  } catch (err) {
-    res.status(500).json({
-      ok: false,
-      error: err.message
-    });
-  }
-});
-
-// 🔥 TRANSLATE – CORE ENDPOINT
 app.post("/translate", async (req, res) => {
   try {
     const { text, targetLanguage } = req.body;
-
     if (!text || !targetLanguage) {
-      return res.status(400).json({
-        ok: false,
-        error: "text and targetLanguage are required"
-      });
+      return res.status(400).json({ ok: false, error: "TEXT_AND_TARGET_REQUIRED" });
     }
 
-    const [translation] = await translate.translate(text, targetLanguage);
+    const response = await fetch(
+      `https://translation.googleapis.com/v3/projects/gen-lang-client-0366781740/locations/global:translateText?key=${API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [text],
+          targetLanguageCode: targetLanguage,
+          mimeType: "text/plain",
+        }),
+      }
+    );
 
-    res.json({
+    const data = await response.json();
+    if (!data.translations || data.translations.length === 0) {
+      return res.status(422).json({ ok: false, error: "TRANSLATION_FAILED" });
+    }
+
+    return res.json({
       ok: true,
-      translatedText: translation
+      translatedText: data.translations[0].translatedText,
     });
   } catch (err) {
-    res.status(500).json({
-      ok: false,
-      error: err.message
-    });
+    console.error(err);
+    return res.status(500).json({ ok: false, error: "INTERNAL_ERROR" });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+app.listen(process.env.PORT || 10000, () => console.log("Server running on port 10000"));
