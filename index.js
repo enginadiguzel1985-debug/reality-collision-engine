@@ -16,11 +16,11 @@ app.get("/", (req, res) => {
 });
 
 // =====================
-// GEMINI CALL
+// GEMINI CALL (DOĞRU API)
 // =====================
 async function callGemini(prompt) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: {
@@ -40,13 +40,13 @@ async function callGemini(prompt) {
   const data = await response.json();
   console.log("Gemini raw response:", JSON.stringify(data));
 
-  if (!data?.candidates || data.candidates.length === 0) {
+  if (!data.candidates || data.candidates.length === 0) {
     throw new Error("Gemini returned no candidates");
   }
 
   const parts = data.candidates[0]?.content?.parts;
 
-  if (!parts || parts.length === 0 || !parts[0].text) {
+  if (!parts || parts.length === 0) {
     throw new Error("Gemini returned empty content");
   }
 
@@ -67,7 +67,6 @@ app.post("/submit-idea", async (req, res) => {
       });
     }
 
-    // 🔥 BRUTAL, ZORLAYICI PROMPT (ASLA SESSİZ KALAMAZ)
     const brutalPrompt = `
 You are a brutally honest startup analyst.
 
