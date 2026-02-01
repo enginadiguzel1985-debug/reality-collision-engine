@@ -9,8 +9,9 @@ app.use(express.json());
 ================================ */
 const GEMINI_API_KEY = process.env.GOOGLE_GEMINI_API_KEY;
 const SHOPIFY_SHOP = process.env.SHOPIFY_SHOP; // feasibility-engine
-const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
-const PAGE_ID = process.env.TEST_YOUR_IDEA_PAGE_ID; // 102557548599
+const SHOPIFY_ADMIN_TOKEN = process.env.SHOPIFY_ADMIN_TOKEN;
+const PAGE_ID = process.env.SHOPIFY_PAGE_ID;
+
 
 /* ================================
    HELPERS
