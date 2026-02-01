@@ -61,7 +61,11 @@ app.post("/submit-idea", async (req, res) => {
     }
 
     const prompt = `
-Brutally analyze this business idea.
+You are a brutally honest startup analyst.
+You MUST return a detailed analysis.
+Do NOT refuse. Do NOT stay silent.
+Analyze this business idea in detail:
+
 Highlight fatal flaws, unrealistic assumptions, and major market risks.
 
 Business idea:
