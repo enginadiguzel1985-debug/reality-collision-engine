@@ -1,16 +1,29 @@
 import express from "express";
 import fetch from "node-fetch";
+import cors from "cors";
 
 const app = express();
+
+// 🔥 CORS — MVP için TAM AÇIK
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"]
+  })
+);
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
+// Health check
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Feasibility Engine backend running." });
 });
 
+// Gemini çağrısı
 async function callGemini(prompt) {
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
@@ -30,7 +43,6 @@ async function callGemini(prompt) {
 
   const data = await response.json();
 
-  // 🔥 ASIL KRİTİK SATIR
   return (
     data?.candidates?.[0]?.content?.parts
       ?.map(p => p.text)
@@ -39,6 +51,7 @@ async function callGemini(prompt) {
   );
 }
 
+// Step 1 — Brutal analysis
 app.post("/submit-idea", async (req, res) => {
   try {
     const { idea } = req.body;
@@ -59,6 +72,7 @@ ${idea}
   }
 });
 
+// Step 2 — Reality collision
 app.post("/reality-test", async (req, res) => {
   try {
     const { idea } = req.body;
