@@ -7,12 +7,10 @@ app.use(express.json());
 const PORT = process.env.PORT || 10000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// sağlık kontrolü
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Feasibility Engine backend running." });
 });
 
-// 1️⃣ Assumption & Risk Analysis
 app.post("/submit-idea", async (req, res) => {
   try {
     const { idea } = req.body;
@@ -38,16 +36,16 @@ ${idea}
 
     const aiData = await aiRes.json();
     const aiText =
-      aiData.candidates?.[0]?.content?.parts?.[0]?.text ||
+      aiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
       "No analysis generated.";
 
     res.json({ result: aiText });
   } catch (err) {
-    res.status(500).json({ error: "AI analysis failed." });
+    console.error(err);
+    res.status(500).json({ error: "AI analysis failed" });
   }
 });
 
-// 2️⃣ Reality Collision
 app.post("/reality-test", async (req, res) => {
   try {
     const { idea } = req.body;
@@ -73,12 +71,13 @@ ${idea}
 
     const aiData = await aiRes.json();
     const aiText =
-      aiData.candidates?.[0]?.content?.parts?.[0]?.text ||
+      aiData?.candidates?.[0]?.content?.parts?.[0]?.text ||
       "No reality test generated.";
 
     res.json({ result: aiText });
   } catch (err) {
-    res.status(500).json({ error: "Reality test failed." });
+    console.error(err);
+    res.status(500).json({ error: "Reality test failed" });
   }
 });
 
