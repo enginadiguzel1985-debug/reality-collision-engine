@@ -4,7 +4,6 @@ import cors from "cors";
 
 const app = express();
 
-// 🔥 CORS — MVP için TAM AÇIK
 app.use(
   cors({
     origin: "*",
@@ -18,22 +17,19 @@ app.use(express.json());
 const PORT = process.env.PORT || 10000;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Health check
 app.get("/", (req, res) => {
   res.json({ ok: true, message: "Feasibility Engine backend running." });
 });
 
-// Gemini çağrısı
 async function callGemini(prompt) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [
           {
-            role: "user",
             parts: [{ text: prompt }]
           }
         ]
@@ -43,15 +39,15 @@ async function callGemini(prompt) {
 
   const data = await response.json();
 
-  return (
-    data?.candidates?.[0]?.content?.parts
-      ?.map(p => p.text)
-      .join("\n") ||
-    "Gemini returned an empty response."
-  );
+  if (!data?.candidates?.length) {
+    throw new Error("Gemini returned no candidates");
+  }
+
+  return data.candidates[0].content.parts
+    .map(p => p.text)
+    .join("\n");
 }
 
-// Step 1 — Brutal analysis
 app.post("/submit-idea", async (req, res) => {
   try {
     const { idea } = req.body;
@@ -67,19 +63,18 @@ ${idea}
     const result = await callGemini(prompt);
     res.json({ result });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "AI analysis failed" });
+    console.error("Submit idea error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Step 2 — Reality collision
 app.post("/reality-test", async (req, res) => {
   try {
     const { idea } = req.body;
 
     const prompt = `
 Reality-check this business idea against real-world constraints.
-Be skeptical, practical, and concrete.
+Be skeptical, practical, concrete, and realistic.
 
 Business idea:
 ${idea}
@@ -88,8 +83,8 @@ ${idea}
     const result = await callGemini(prompt);
     res.json({ result });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Reality test failed" });
+    console.error("Reality test error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
