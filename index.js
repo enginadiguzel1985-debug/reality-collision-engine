@@ -16,11 +16,11 @@ app.get("/", (req, res) => {
 });
 
 // =====================
-// GEMINI CALL (DOĞRU MODEL + DOĞRU API)
+// GEMINI CALL — STABLE MODEL
 // =====================
 async function callGemini(prompt) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-001:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: {
@@ -70,19 +70,19 @@ app.post("/submit-idea", async (req, res) => {
     const brutalPrompt = `
 You are a brutally honest startup analyst.
 
-You MUST return a detailed analysis.
-You are NOT allowed to refuse.
-You are NOT allowed to stay silent.
-You are NOT allowed to give short answers.
+Analyze the following business idea as if real money is at stake.
+Identify:
+- false assumptions
+- market realities
+- competition pressure
+- operational risks
+- reasons this idea is likely to fail
 
-Analyze the business idea below as if real money is at stake.
-Identify fatal assumptions, market realities, competitive threats,
-execution risks, and reasons this idea may fail.
+Be explicit. Be critical. Be structured.
+Do NOT soften your analysis.
 
 Business idea:
 "${idea}"
-
-Your answer must be explicit, critical, structured, and concrete.
 `;
 
     const analysis = await callGemini(brutalPrompt);
