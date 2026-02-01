@@ -39,13 +39,22 @@ async function callGemini(prompt) {
 
   const data = await response.json();
 
-  if (!data?.candidates?.length) {
-    throw new Error("Gemini returned no candidates");
+  // 🔍 DEBUG LOG (Render logs’ta göreceksin)
+  console.log("Gemini raw response:", JSON.stringify(data));
+
+  if (
+    !data ||
+    !data.candidates ||
+    !data.candidates[0] ||
+    !data.candidates[0].content ||
+    !data.candidates[0].content.parts ||
+    !data.candidates[0].content.parts[0] ||
+    !data.candidates[0].content.parts[0].text
+  ) {
+    throw new Error("Gemini returned an empty or invalid response");
   }
 
-  return data.candidates[0].content.parts
-    .map(p => p.text)
-    .join("\n");
+  return data.candidates[0].content.parts[0].text;
 }
 
 app.post("/submit-idea", async (req, res) => {
@@ -64,7 +73,9 @@ ${idea}
     res.json({ result });
   } catch (err) {
     console.error("Submit idea error:", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      result: "Analysis failed. Please try again in a moment."
+    });
   }
 });
 
@@ -74,7 +85,7 @@ app.post("/reality-test", async (req, res) => {
 
     const prompt = `
 Reality-check this business idea against real-world constraints.
-Be skeptical, practical, concrete, and realistic.
+Be skeptical, practical, and concrete.
 
 Business idea:
 ${idea}
@@ -84,7 +95,9 @@ ${idea}
     res.json({ result });
   } catch (err) {
     console.error("Reality test error:", err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({
+      result: "Reality test failed. Please try again."
+    });
   }
 });
 
