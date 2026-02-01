@@ -21,7 +21,7 @@ app.get("/", (req, res) => {
 
 async function callGemini(prompt) {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`,
     {
       method: "POST",
       headers: {
@@ -30,7 +30,6 @@ async function callGemini(prompt) {
       body: JSON.stringify({
         contents: [
           {
-            role: "user",
             parts: [{ text: prompt }]
           }
         ]
@@ -39,7 +38,6 @@ async function callGemini(prompt) {
   );
 
   const data = await response.json();
-
   console.log("🔍 Gemini raw response:", JSON.stringify(data));
 
   if (!data.candidates || data.candidates.length === 0) {
@@ -47,7 +45,6 @@ async function callGemini(prompt) {
   }
 
   const parts = data.candidates[0]?.content?.parts;
-
   if (!parts || parts.length === 0 || !parts[0].text) {
     throw new Error("Gemini returned empty content");
   }
