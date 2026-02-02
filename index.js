@@ -1,72 +1,58 @@
 import express from "express";
+import fetch from "node-fetch";
 import cors from "cors";
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
 app.use(cors());
 app.use(express.json());
 
-/*
-  POST /submit-idea
-  body:
-  {
-    idea: string,
-    phase: "assumption" | "reality_collision"
-  }
-*/
-
-app.post("/submit-idea", async (req, res) => {
-  const idea = req.body.idea;
-  const phase = req.body.phase || "assumption";
-
-  if (!idea || idea.trim().length === 0) {
-    return res.status(400).json({
-      success: false,
-      error: "Idea is required"
-    });
-  }
-
-  // =========================
-  // 1️⃣ AI DENEMESİ
-  // =========================
-  try {
-    const aiResult = await callAIStub(idea, phase);
-
-    if (aiResult && aiResult.trim().length > 0) {
-      return res.json({
-        success: true,
-        source: "ai",
-        phase,
-        analysis: aiResult
-      });
-    }
-
-    console.log("AI returned empty response → fallback");
-
-  } catch (err) {
-    console.error("AI CALL FAILED → fallback", err.message);
-  }
-
-  // =========================
-  // 2️⃣ FALLBACK (SON ÇARE)
-  // =========================
-  const fallback =
-    phase === "reality_collision"
-      ? realityFallback(idea)
-      : assumptionFallback(idea);
-
-  return res.json({
-    success: true,
-    source: "fallback",
-    phase,
-    analysis: fallback
-  });
+// ==========================
+// HEALTH CHECK
+// ==========================
+app.get("/", (req, res) => {
+  res.json({ status: "Reality Collision Engine running" });
 });
 
-// =========================
-// FALLBACK METİNLERİ
-// =========================
+// ==========================
+// GEMINI CALL (CORRECT MODEL)
+// ==========================
+async function callGemini(prompt) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro-001:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: prompt }]
+          }
+        ]
+      })
+    }
+  );
 
-function assumptionFallback(idea) {
+  const data = await response.json();
+  console.log("Gemini raw response:", JSON.stringify(data));
+
+  const parts = data?.candidates?.[0]?.content?.parts;
+
+  if (!parts || parts.length === 0) {
+    throw new Error("Gemini returned empty content");
+  }
+
+  return parts.map(p => p.text).join("\n");
+}
+
+// ==========================
+// FALLBACK (ONLY IF AI FAILS)
+// ==========================
+function fallbackAnalysis(idea) {
   return `
 BRUTALLY HONEST BASELINE ANALYSIS (Fallback)
 
@@ -84,35 +70,53 @@ Explicitly list what MUST be true for this to work.
 `;
 }
 
-function realityFallback(idea) {
-  return `
-REALITY COLLISION (Fallback)
+// ==========================
+// MAIN ENDPOINT
+// ==========================
+app.post("/submit-idea", async (req, res) => {
+  const { idea } = req.body;
 
-Idea:
+  if (!idea || idea.trim().length < 10) {
+    return res.status(400).json({
+      success: false,
+      error: "Idea is too short"
+    });
+  }
+
+  const prompt = `
+You are a brutally honest startup analyst.
+
+Your task:
+1. Identify the key assumptions in the idea.
+2. Point out logical contradictions or delusions.
+3. Explain why the idea is likely to fail in the real world.
+4. Do NOT be polite. Be precise.
+
+Business idea:
 "${idea}"
-
-Reality Check:
-Belief does not create customers.
-Constraints do.
-
-Question:
-What real-world factor kills this idea first?
 `;
-}
 
-// =========================
-// AI STUB (ŞİMDİLİK)
-// =========================
-// Burası BİLİNÇLİ OLARAK SAHTE.
-// Gemini / OpenAI buraya sonra bağlanacak.
+  try {
+    const analysis = await callGemini(prompt);
 
-async function callAIStub(idea, phase) {
-  return null; // ❗ null → fallback tetikler
-}
+    return res.json({
+      success: true,
+      analysis
+    });
 
-// =========================
+  } catch (err) {
+    console.error("AI FAILED → FALLBACK USED:", err.message);
 
-const PORT = process.env.PORT || 3000;
+    return res.json({
+      success: true,
+      analysis: fallbackAnalysis(idea)
+    });
+  }
+});
+
+// ==========================
+// SERVER
+// ==========================
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log(`✅ Server running on port ${PORT}`);
 });
