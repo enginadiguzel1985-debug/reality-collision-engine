@@ -1,63 +1,44 @@
 import express from "express";
-import session from "express-session";
 import fs from "fs";
 import path from "path";
 
 const app = express();
-const PORT = process.env.PORT || 10000;
+app.use(express.json());
 
-// ideas.json doğru yolu (src altı)
-const ideasFilePath = path.join(process.cwd(), "src", "ideas.json");
+// Mutlak yol: prod ve local uyumlu
+const ideasPath = path.join(process.cwd(), "src", "ideas.json");
 
-// Eğer ideas.json yoksa oluştur
-if (!fs.existsSync(ideasFilePath)) {
-  fs.writeFileSync(ideasFilePath, "[]", "utf-8");
+// Dosya yoksa oluştur ve içine boş dizi yaz
+if (!fs.existsSync(ideasPath)) {
+  fs.writeFileSync(ideasPath, "[]");
 }
 
-// Middleware
-app.use(express.json());
-app.use(session({
-  secret: "secret-key",
-  resave: false,
-  saveUninitialized: true
-}));
+// Başlangıçta ideas.json'dan oku
+let ideas = JSON.parse(fs.readFileSync(ideasPath, "utf8"));
 
 // Ana sayfa
 app.get("/", (req, res) => {
-  res.send("Reality Collision Engine is running!");
+  res.send("Reality Collision Engine running");
 });
 
-// Start endpoint
+// Başlat endpoint
 app.get("/start", (req, res) => {
-  res.send("Engine started.");
+  res.json({ message: "Start endpoint", ideas });
 });
 
-// Idea submit endpoint
+// Fikir ekleme endpoint
 app.post("/submit-idea", (req, res) => {
   const { idea } = req.body;
   if (!idea) return res.status(400).json({ error: "Idea is required" });
 
-  let ideas = [];
-  try {
-    const data = fs.readFileSync(ideasFilePath, "utf-8");
-    ideas = JSON.parse(data);
-  } catch (err) {
-    console.error("Error reading ideas.json:", err);
-  }
-
   ideas.push({ idea, timestamp: new Date().toISOString() });
 
-  try {
-    fs.writeFileSync(ideasFilePath, JSON.stringify(ideas, null, 2), "utf-8");
-  } catch (err) {
-    console.error("Error writing ideas.json:", err);
-    return res.status(500).json({ error: "Failed to save idea" });
-  }
+  // Her eklemede dosyayı güncelle
+  fs.writeFileSync(ideasPath, JSON.stringify(ideas, null, 2));
 
-  res.json({ message: "Idea submitted successfully", idea });
+  res.json({ message: "Idea submitted successfully", ideas });
 });
 
-// Sunucu başlat
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Port ayarı
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
