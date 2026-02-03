@@ -1,13 +1,11 @@
 import express from "express";
 import session from "express-session";
+import fetch from "node-fetch"; // Eğer Render’da yoksa npm install node-fetch yap
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-/* ---------- Global Storage for Analytics ---------- */
-const allIdeas = []; // Sunucuda tüm girilen fikirleri kaydetmek için
-
-/* ---------- middleware ---------- */
+/* ---------- Middleware ---------- */
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
@@ -34,21 +32,38 @@ app.get("/start", (req, res) => {
 });
 
 /* ---------- RUN FREE TEST ---------- */
-app.post("/run", (req, res) => {
+app.post("/run", async (req, res) => {
   const { idea } = req.body;
   req.session.idea = idea;
 
-  // Sunucuda kaydet
-  allIdeas.push(idea);
+  let aiResponse = "AI response failed.";
+
+  try {
+    // Google Gemini Flash 1.5 API çağrısı
+    const apiKey = process.env.GOOGLE_GEMINI_API_KEY; // Render üzerinde set et
+    const response = await fetch("https://gemini.googleapis.com/v1/flash:generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gemini-flash-1.5",
+        prompt: idea,
+        maxOutputTokens: 200
+      }),
+    });
+
+    const data = await response.json();
+    aiResponse = data.output_text || "No response from Gemini";
+  } catch (err) {
+    console.error("Gemini API error:", err);
+  }
 
   res.send(`
     <h2>Free Result</h2>
-    <p><strong>Assumption & Risk Analysis:</strong></p>
-    <ul>
-      <li>Demand is unproven and must be validated.</li>
-      <li>Costs and competition are likely underestimated.</li>
-      <li>This is a preliminary reality check.</li>
-    </ul>
+    <p><strong>AI Analysis:</strong></p>
+    <pre>${aiResponse}</pre>
 
     <form method="GET" action="/start">
       <button>Edit idea & try again</button>
@@ -65,11 +80,6 @@ app.post("/run", (req, res) => {
 /* ---------- ROOT ---------- */
 app.get("/", (req, res) => {
   res.redirect("/start");
-});
-
-/* ---------- ADMIN/ANALYTICS ENDPOINT (opsiyonel) ---------- */
-app.get("/all-ideas", (req, res) => {
-  res.json(allIdeas); // tüm fikirleri JSON olarak görüntüle
 });
 
 /* ---------- START SERVER ---------- */
