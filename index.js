@@ -1,88 +1,67 @@
 import express from "express";
 import session from "express-session";
-import path from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Body parser
+/* ---------- middleware ---------- */
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Session setup
 app.use(
   session({
-    secret: "verysecretkey",
+    secret: "feasibility-engine-secret",
     resave: false,
     saveUninitialized: true,
-    cookie: { maxAge: 10 * 60 * 1000 }, // 10 dakika
   })
 );
 
-// Static front-end dosyaları
-app.use(express.static(path.join(__dirname, "public")));
-
-// /start sayfası
+/* ---------- START PAGE ---------- */
 app.get("/start", (req, res) => {
   const idea = req.session.idea || "";
-  res.send(`
-    <html>
-    <head>
-      <title>Free Idea Stress Test</title>
-    </head>
-    <body>
-      <h2>Free Idea Stress Test</h2>
-      <form action="/result" method="POST">
-        <textarea id="ideaInput" name="idea" placeholder="Write your business idea here" rows="4" cols="50">${idea}</textarea><br>
-        <button type="submit">Run Free Stress Test</button>
-      </form>
 
-      <script>
-        // LocalStorage backup
-        const input = document.getElementById('ideaInput');
-        const savedIdea = localStorage.getItem('userIdea');
-        if(savedIdea) input.value = savedIdea;
-        input.addEventListener('input', () => {
-          localStorage.setItem('userIdea', input.value);
-        });
-      </script>
-    </body>
-    </html>
+  res.send(`
+    <h1>Free Idea Stress Test</h1>
+    <form method="POST" action="/run">
+      <textarea name="idea" rows="6" cols="60"
+        placeholder="Write your business idea here">${idea}</textarea><br><br>
+      <button type="submit">Run Free Stress Test</button>
+    </form>
   `);
 });
 
-// /result sayfası
-app.post("/result", (req, res) => {
-  const userIdea = req.body.idea || "";
-  req.session.idea = userIdea;
+/* ---------- RUN FREE TEST ---------- */
+app.post("/run", (req, res) => {
+  const { idea } = req.body;
+  req.session.idea = idea;
 
   res.send(`
-    <html>
-    <head><title>Free Result</title></head>
-    <body>
-      <h2>Free Result</h2>
-      <p>Assumption & Risk Analysis:</p>
-      <ul>
-        <li>Demand is unproven and must be validated.</li>
-        <li>Costs and competition are likely underestimated.</li>
-        <li>This is a preliminary reality check.</li>
-      </ul>
-      <form action="/start" method="GET">
-        <button type="submit">Edit idea & try again</button>
-      </form>
-      <a href="https://feasibilityengine.com/products/decision-stress-test-access">
-        <button>Unlock Full Reality Collision</button>
-      </a>
-    </body>
-    </html>
+    <h2>Free Result</h2>
+    <p><strong>Assumption & Risk Analysis:</strong></p>
+    <ul>
+      <li>Demand is unproven and must be validated.</li>
+      <li>Costs and competition are likely underestimated.</li>
+      <li>This is a preliminary reality check.</li>
+    </ul>
+
+    <form method="GET" action="/start">
+      <button>Edit idea & try again</button>
+    </form>
+
+    <br>
+
+    <a href="https://feasibilityengine.com/products/decision-stress-test-access">
+      <button>Unlock Full Reality Collision</button>
+    </a>
   `);
 });
 
-// Server start
+/* ---------- ROOT ---------- */
+app.get("/", (req, res) => {
+  res.redirect("/start");
+});
+
+/* ---------- START SERVER ---------- */
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log("Server running on port", PORT);
 });
