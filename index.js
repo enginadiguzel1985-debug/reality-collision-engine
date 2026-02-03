@@ -6,7 +6,7 @@ import path from "path";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ideas.json doğru yolu (src klasörü altı)
+// ideas.json doğru yolu (src altı)
 const ideasFilePath = path.join(process.cwd(), "src", "ideas.json");
 
 // Eğer ideas.json yoksa oluştur
@@ -37,7 +37,6 @@ app.post("/submit-idea", (req, res) => {
   const { idea } = req.body;
   if (!idea) return res.status(400).json({ error: "Idea is required" });
 
-  // Mevcut fikirleri oku
   let ideas = [];
   try {
     const data = fs.readFileSync(ideasFilePath, "utf-8");
@@ -46,10 +45,8 @@ app.post("/submit-idea", (req, res) => {
     console.error("Error reading ideas.json:", err);
   }
 
-  // Yeni fikri ekle
   ideas.push({ idea, timestamp: new Date().toISOString() });
 
-  // ideas.json'a yaz
   try {
     fs.writeFileSync(ideasFilePath, JSON.stringify(ideas, null, 2), "utf-8");
   } catch (err) {
