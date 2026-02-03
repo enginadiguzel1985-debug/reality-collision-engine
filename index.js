@@ -1,44 +1,59 @@
+// index.js
 import express from "express";
 import fs from "fs";
 import path from "path";
+import cors from "cors";
 
 const app = express();
+const PORT = process.env.PORT || 10000;
+
+// Middleware
+app.use(cors());
 app.use(express.json());
 
-// Mutlak yol: prod ve local uyumlu
-const ideasPath = path.join(process.cwd(), "src", "ideas.json");
+// ideas.json dosyasının yolu (proje kökünde)
+const ideasPath = path.join(process.cwd(), "ideas.json");
 
-// Dosya yoksa oluştur ve içine boş dizi yaz
+// ideas.json yoksa oluştur
 if (!fs.existsSync(ideasPath)) {
-  fs.writeFileSync(ideasPath, "[]");
+  fs.writeFileSync(ideasPath, "[]", "utf8");
 }
 
-// Başlangıçta ideas.json'dan oku
-let ideas = JSON.parse(fs.readFileSync(ideasPath, "utf8"));
-
-// Ana sayfa
-app.get("/", (req, res) => {
-  res.send("Reality Collision Engine running");
-});
-
-// Başlat endpoint
+// GET /start -> sadece bir hoşgeldin mesajı
 app.get("/start", (req, res) => {
-  res.json({ message: "Start endpoint", ideas });
+  res.json({ message: "Reality Collision Engine live!" });
 });
 
-// Fikir ekleme endpoint
+// POST /submit-idea -> fikir ekle
 app.post("/submit-idea", (req, res) => {
   const { idea } = req.body;
-  if (!idea) return res.status(400).json({ error: "Idea is required" });
+  if (!idea || idea.trim() === "") {
+    return res.status(400).json({ error: "Idea cannot be empty" });
+  }
 
-  ideas.push({ idea, timestamp: new Date().toISOString() });
+  let ideas = [];
+  try {
+    const data = fs.readFileSync(ideasPath, "utf8");
+    ideas = JSON.parse(data);
+  } catch (err) {
+    console.error("Failed to read ideas.json:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
 
-  // Her eklemede dosyayı güncelle
-  fs.writeFileSync(ideasPath, JSON.stringify(ideas, null, 2));
+  // Yeni fikir ekle
+  ideas.push({ idea: idea.trim(), createdAt: new Date().toISOString() });
 
-  res.json({ message: "Idea submitted successfully", ideas });
+  try {
+    fs.writeFileSync(ideasPath, JSON.stringify(ideas, null, 2), "utf8");
+  } catch (err) {
+    console.error("Failed to write ideas.json:", err);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+
+  res.json({ message: "Idea submitted successfully!", idea: idea.trim() });
 });
 
-// Port ayarı
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Server başlat
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
