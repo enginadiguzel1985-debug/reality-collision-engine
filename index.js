@@ -1,72 +1,80 @@
 import express from "express";
+import session from "express-session";
 import fs from "fs";
 import path from "path";
-import session from "express-session";
+import fetch from "node-fetch";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// JSON verilerinin kaydedileceği dosya yolu
-const ideasFilePath = path.join(process.cwd(), "src", "ideas.json");
-
-// Ortam için JSON dosyası yoksa oluştur
-if (!fs.existsSync(ideasFilePath)) {
-  fs.writeFileSync(ideasFilePath, "[]", "utf8");
-}
+// ideas.json dosyasının yolu
+const ideasFilePath = path.join(process.cwd(), "ideas.json");
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   session({
-    secret: "replace_this_with_a_secure_secret",
+    secret: "supersecretkey",
     resave: false,
     saveUninitialized: true,
   })
 );
 
-// Başlangıç endpointi
-app.get("/start", (req, res) => {
-  res.json({
-    message: "Reality Collision Engine Başladı",
-  });
+// Ana sayfa
+app.get("/", (req, res) => {
+  res.send("Reality Collision Engine is running.");
 });
 
-// Fikir gönderme endpointi
+// Start endpoint
+app.get("/start", (req, res) => {
+  res.json({ message: "Server ready for ideas!" });
+});
+
+// Run endpoint (örnek)
+app.post("/run", async (req, res) => {
+  const { input } = req.body;
+  // Burada node-fetch ile dış API çağrısı örneği
+  const response = await fetch("https://api.example.com/process", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ input }),
+  });
+  const data = await response.json();
+  res.json(data);
+});
+
+// Idea submission
 app.post("/submit-idea", (req, res) => {
   const { idea } = req.body;
+  if (!idea) return res.status(400).json({ error: "Idea is required." });
 
-  if (!idea || idea.trim() === "") {
-    return res.status(400).json({ error: "Idea boş olamaz" });
-  }
-
-  // Mevcut fikirleri oku
+  // ideas.json'u oku
   let ideas = [];
   try {
-    const data = fs.readFileSync(ideasFilePath, "utf8");
-    ideas = JSON.parse(data);
+    if (fs.existsSync(ideasFilePath)) {
+      const fileData = fs.readFileSync(ideasFilePath, "utf-8");
+      ideas = JSON.parse(fileData);
+    }
   } catch (err) {
-    console.error("ideas.json okunamadı:", err);
+    console.error("Error reading ideas.json:", err);
   }
 
   // Yeni fikri ekle
-  ideas.push({
-    idea: idea.trim(),
-    timestamp: new Date().toISOString(),
-  });
+  ideas.push({ idea, timestamp: new Date().toISOString() });
 
   // Dosyaya yaz
   try {
-    fs.writeFileSync(ideasFilePath, JSON.stringify(ideas, null, 2), "utf8");
+    fs.writeFileSync(ideasFilePath, JSON.stringify(ideas, null, 2));
   } catch (err) {
-    console.error("ideas.json yazılamadı:", err);
-    return res.status(500).json({ error: "Fikir kaydedilemedi" });
+    console.error("Error writing ideas.json:", err);
+    return res.status(500).json({ error: "Failed to save idea." });
   }
 
-  res.json({ message: "Fikir kaydedildi", idea: idea.trim() });
+  res.json({ message: "Idea saved successfully!", idea });
 });
 
-// Sunucu başlat
+// Server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
