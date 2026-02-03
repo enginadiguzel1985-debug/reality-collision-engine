@@ -7,8 +7,8 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ideas.json dosyasının yolu
-const ideasFilePath = path.join(process.cwd(), "ideas.json");
+// ideas.json dosyasının yolu (Render için doğru)
+const ideasFilePath = path.join(process.cwd(), "src", "ideas.json");
 
 // Middleware
 app.use(express.json());
@@ -34,7 +34,6 @@ app.get("/start", (req, res) => {
 // Run endpoint (örnek)
 app.post("/run", async (req, res) => {
   const { input } = req.body;
-  // Burada node-fetch ile dış API çağrısı örneği
   const response = await fetch("https://api.example.com/process", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -49,7 +48,6 @@ app.post("/submit-idea", (req, res) => {
   const { idea } = req.body;
   if (!idea) return res.status(400).json({ error: "Idea is required." });
 
-  // ideas.json'u oku
   let ideas = [];
   try {
     if (fs.existsSync(ideasFilePath)) {
@@ -60,10 +58,8 @@ app.post("/submit-idea", (req, res) => {
     console.error("Error reading ideas.json:", err);
   }
 
-  // Yeni fikri ekle
   ideas.push({ idea, timestamp: new Date().toISOString() });
 
-  // Dosyaya yaz
   try {
     fs.writeFileSync(ideasFilePath, JSON.stringify(ideas, null, 2));
   } catch (err) {
