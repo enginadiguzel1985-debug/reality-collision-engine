@@ -1,11 +1,12 @@
 import express from "express";
 import session from "express-session";
-import fetch from "node-fetch"; // Eğer Render’da yoksa npm install node-fetch yap
+import fs from "fs";
+import path from "path";
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-/* ---------- Middleware ---------- */
+/* ---------- middleware ---------- */
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
@@ -16,6 +17,14 @@ app.use(
     saveUninitialized: true,
   })
 );
+
+/* ---------- JSON DATA ---------- */
+const DATA_FILE = path.join(process.cwd(), "ideas.json");
+
+// JSON dosyası yoksa oluştur
+if (!fs.existsSync(DATA_FILE)) {
+  fs.writeFileSync(DATA_FILE, JSON.stringify([]));
+}
 
 /* ---------- START PAGE ---------- */
 app.get("/start", (req, res) => {
@@ -32,38 +41,26 @@ app.get("/start", (req, res) => {
 });
 
 /* ---------- RUN FREE TEST ---------- */
-app.post("/run", async (req, res) => {
+app.post("/run", (req, res) => {
   const { idea } = req.body;
   req.session.idea = idea;
 
-  let aiResponse = "AI response failed.";
-
-  try {
-    // Google Gemini Flash 1.5 API çağrısı
-    const apiKey = process.env.GOOGLE_GEMINI_API_KEY; // Render üzerinde set et
-    const response = await fetch("https://gemini.googleapis.com/v1/flash:generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "gemini-flash-1.5",
-        prompt: idea,
-        maxOutputTokens: 200
-      }),
-    });
-
-    const data = await response.json();
-    aiResponse = data.output_text || "No response from Gemini";
-  } catch (err) {
-    console.error("Gemini API error:", err);
-  }
+  // JSON dosyasına kaydet
+  const existingIdeas = JSON.parse(fs.readFileSync(DATA_FILE));
+  existingIdeas.push({
+    idea,
+    timestamp: new Date().toISOString(),
+  });
+  fs.writeFileSync(DATA_FILE, JSON.stringify(existingIdeas, null, 2));
 
   res.send(`
     <h2>Free Result</h2>
-    <p><strong>AI Analysis:</strong></p>
-    <pre>${aiResponse}</pre>
+    <p><strong>Assumption & Risk Analysis:</strong></p>
+    <ul>
+      <li>Demand is unproven and must be validated.</li>
+      <li>Costs and competition are likely underestimated.</li>
+      <li>This is a preliminary reality check.</li>
+    </ul>
 
     <form method="GET" action="/start">
       <button>Edit idea & try again</button>
