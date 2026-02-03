@@ -1,69 +1,55 @@
-import express from "express";
-import cors from "cors";
-
+const express = require("express");
+const fetch = require("node-fetch");
 const app = express();
-app.use(cors());
+
+app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-/**
- * HEALTH CHECK
- */
-app.get("/", (req, res) => {
-  res.json({ status: "OK", service: "Reality Collision Engine" });
+app.get("/start", (req, res) => {
+  res.send(`
+    <html>
+      <body style="font-family: Arial; padding:40px; max-width:600px;">
+        <h2>Free Idea Stress Test</h2>
+        <form method="POST" action="/run">
+          <textarea name="idea" rows="6" style="width:100%;" placeholder="Write your business idea here"></textarea><br><br>
+          <button type="submit">Run Free Stress Test</button>
+        </form>
+      </body>
+    </html>
+  `);
 });
 
-/**
- * SUBMIT IDEA — BULLETPROOF VERSION
- */
-app.post("/submit-idea", async (req, res) => {
-  const { idea } = req.body;
+app.post("/run", async (req, res) => {
+  const idea = req.body.idea || "";
 
-  // HARD FAIL-SAFE RESPONSE (ASLA BOŞ DÖNMEZ)
-  const fallbackAnalysis = `
+  const analysis = `
 Assumption & Risk Analysis:
 
-• Demand is unproven and must be validated with real foot traffic data.
-• Shopping mall rental costs may significantly reduce margins.
-• Seasonality risk: lemonade demand may fluctuate.
-• Operational complexity (staffing, permits, sourcing) is often underestimated.
-
-This is a preliminary reality check.
+• Demand is unproven and must be validated.
+• Costs and competition are likely underestimated.
+• This is a preliminary reality check.
 `;
 
-  try {
-    // ŞU ANDA AI'YI BİLEREK DEVRE DIŞI BIRAKIYORUZ
-    // ÜRÜN STABİL OLSUN DİYE
+  res.send(`
+    <html>
+      <body style="font-family: Arial; padding:40px; max-width:600px;">
+        <h2>Free Result</h2>
+        <pre>${analysis}</pre>
 
-    return res.json({
-      analysis: fallbackAnalysis,
-      source: "fallback",
-      canContinueToRealityCollision: true,
-    });
-  } catch (err) {
-    return res.json({
-      analysis: fallbackAnalysis,
-      source: "fallback-error",
-      canContinueToRealityCollision: true,
-    });
-  }
+        <form method="GET" action="/start">
+          <button>Edit idea & try again</button>
+        </form>
+
+        <br>
+
+        <a href="https://feasibilityengine.com/products/decision-stress-test-access">
+          <button>Unlock Full Reality Collision</button>
+        </a>
+      </body>
+    </html>
+  `);
 });
 
-/**
- * REALITY COLLISION — PLACEHOLDER
- */
-app.post("/reality-collision", async (req, res) => {
-  return res.json({
-    result: `
-Reality Collision Result:
-
-• Your idea faces real-world friction in cost, demand, and scalability.
-• Small-scale pilot testing is strongly recommended.
-• Consider alternative locations or lower fixed-cost setups.
-`,
-  });
-});
-
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log("✅ Server running on port", PORT);
+app.listen(10000, () => {
+  console.log("Server running on port 10000");
 });
