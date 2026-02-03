@@ -1,85 +1,81 @@
-import express from "express";
-import session from "express-session";
-import fs from "fs";
-import path from "path";
+import express from 'express';
+import session from 'express-session';
+import fs from 'fs';
+import path from 'path';
+import fetch from 'node-fetch';
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-/* ---------- middleware ---------- */
-app.use(express.urlencoded({ extended: true }));
+// Middleware
 app.use(express.json());
+app.use(session({
+  secret: 'replace-with-strong-secret',
+  resave: false,
+  saveUninitialized: true
+}));
 
-app.use(
-  session({
-    secret: "feasibility-engine-secret",
-    resave: false,
-    saveUninitialized: true,
-  })
-);
+// ideas.json yolu
+const ideasFile = path.join(process.cwd(), 'src', 'ideas.json');
 
-/* ---------- JSON DATA ---------- */
-const DATA_FILE = path.join(process.cwd(), "ideas.json");
+// Fikirleri kaydetme fonksiyonu
+function saveIdea(idea) {
+  let ideas = [];
+  try {
+    const data = fs.readFileSync(ideasFile, 'utf8');
+    ideas = data ? JSON.parse(data) : [];
+  } catch (err) {
+    console.error('ideas.json okunamadı, yeni dosya oluşturuluyor.');
+  }
 
-// JSON dosyası yoksa oluştur
-if (!fs.existsSync(DATA_FILE)) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify([]));
+  ideas.push({ idea, timestamp: new Date().toISOString() });
+  fs.writeFileSync(ideasFile, JSON.stringify(ideas, null, 2), 'utf8');
 }
 
-/* ---------- START PAGE ---------- */
-app.get("/start", (req, res) => {
-  const idea = req.session.idea || "";
-
-  res.send(`
-    <h1>Free Idea Stress Test</h1>
-    <form method="POST" action="/run">
-      <textarea name="idea" rows="6" cols="60"
-        placeholder="Write your business idea here">${idea}</textarea><br><br>
-      <button type="submit">Run Free Stress Test</button>
-    </form>
-  `);
+// Routes
+app.get('/', (req, res) => {
+  res.send('Reality Collision Engine API is live!');
 });
 
-/* ---------- RUN FREE TEST ---------- */
-app.post("/run", (req, res) => {
+app.get('/start', (req, res) => {
+  res.json({ message: 'AI engine ready. Submit your idea via /submit-idea.' });
+});
+
+app.post('/submit-idea', (req, res) => {
   const { idea } = req.body;
-  req.session.idea = idea;
+  if (!idea) {
+    return res.status(400).json({ error: 'Idea is required' });
+  }
 
-  // JSON dosyasına kaydet
-  const existingIdeas = JSON.parse(fs.readFileSync(DATA_FILE));
-  existingIdeas.push({
-    idea,
-    timestamp: new Date().toISOString(),
-  });
-  fs.writeFileSync(DATA_FILE, JSON.stringify(existingIdeas, null, 2));
+  // Fikri kaydet
+  saveIdea(idea);
 
-  res.send(`
-    <h2>Free Result</h2>
-    <p><strong>Assumption & Risk Analysis:</strong></p>
-    <ul>
-      <li>Demand is unproven and must be validated.</li>
-      <li>Costs and competition are likely underestimated.</li>
-      <li>This is a preliminary reality check.</li>
-    </ul>
+  // Örnek AI cevabı
+  const aiResponse = {
+    summary: "Demand is unproven and must be validated.",
+    risk: "Costs and competition are likely underestimated.",
+    advice: "This is a preliminary reality check."
+  };
 
-    <form method="GET" action="/start">
-      <button>Edit idea & try again</button>
-    </form>
-
-    <br>
-
-    <a href="https://feasibilityengine.com/products/decision-stress-test-access">
-      <button>Unlock Full Reality Collision</button>
-    </a>
-  `);
+  res.json(aiResponse);
 });
 
-/* ---------- ROOT ---------- */
-app.get("/", (req, res) => {
-  res.redirect("/start");
+app.post('/run', async (req, res) => {
+  const { prompt } = req.body;
+  if (!prompt) return res.status(400).json({ error: 'Prompt is required' });
+
+  // Örnek: Google Gemini veya başka AI endpoint ile çalışacak
+  // Burada fetch ile gerçek API çağrısı yapılabilir
+  // Örnek cevap:
+  const aiResult = {
+    result: "This is a simulated AI analysis for your prompt.",
+    details: "You can extend this with more complex logic or AI API calls."
+  };
+
+  res.json(aiResult);
 });
 
-/* ---------- START SERVER ---------- */
+// Server başlatma
 app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
+  console.log(`Server running on port ${PORT}`);
 });
