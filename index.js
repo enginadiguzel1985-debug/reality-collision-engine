@@ -6,12 +6,12 @@ import path from "path";
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// ideas.json dosyasının doğru yolu
+// ideas.json doğru yolu (src klasörü altı)
 const ideasFilePath = path.join(process.cwd(), "src", "ideas.json");
 
-// ideas.json yoksa oluştur
+// Eğer ideas.json yoksa oluştur
 if (!fs.existsSync(ideasFilePath)) {
-  fs.writeFileSync(ideasFilePath, "[]");
+  fs.writeFileSync(ideasFilePath, "[]", "utf-8");
 }
 
 // Middleware
@@ -22,22 +22,20 @@ app.use(session({
   saveUninitialized: true
 }));
 
-// Başlangıç sayfası
+// Ana sayfa
 app.get("/", (req, res) => {
   res.send("Reality Collision Engine is running!");
 });
 
-// Başlat sayfası
+// Start endpoint
 app.get("/start", (req, res) => {
   res.send("Engine started.");
 });
 
-// İş fikri submit endpoint
+// Idea submit endpoint
 app.post("/submit-idea", (req, res) => {
   const { idea } = req.body;
-  if (!idea) {
-    return res.status(400).json({ error: "Idea is required" });
-  }
+  if (!idea) return res.status(400).json({ error: "Idea is required" });
 
   // Mevcut fikirleri oku
   let ideas = [];
@@ -53,7 +51,7 @@ app.post("/submit-idea", (req, res) => {
 
   // ideas.json'a yaz
   try {
-    fs.writeFileSync(ideasFilePath, JSON.stringify(ideas, null, 2));
+    fs.writeFileSync(ideasFilePath, JSON.stringify(ideas, null, 2), "utf-8");
   } catch (err) {
     console.error("Error writing ideas.json:", err);
     return res.status(500).json({ error: "Failed to save idea" });
