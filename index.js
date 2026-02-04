@@ -8,55 +8,55 @@ app.use(express.json());
 
 const IDEAS_FILE = "./ideas.json";
 
-// Helper: Google Gemini çağrısı
+// Gemini 1.5 Flash API çağırma fonksiyonu
 async function callGemini(prompt) {
   try {
-    const resp = await fetch("https://gemini.googleapis.com/v1beta2/responses:generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.GOOGLE_GEMINI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gemini-1.5-flash",
-        prompt: [
-          {
-            content: prompt,
-            type: "text"
-          }
-        ]
-      })
-    });
-    const data = await resp.json();
-    return data.candidates?.[0]?.content || "AI yanıtı alınamadı";
-  } catch (err) {
-    console.error(err);
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.GOOGLE_GEMINI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          prompt: { text: prompt },
+          temperature: 0.7,
+          maxOutputTokens: 512,
+        }),
+      }
+    );
+
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.[0]?.text || "AI yanıtı alınamadı";
+  } catch (error) {
+    console.error("Gemini API error:", error);
     return "AI işleme sırasında hata oluştu.";
   }
 }
 
-// -----------------------------
 // Form 1: Hypothesis Tester
-// -----------------------------
 app.post("/decision-stress-test", async (req, res) => {
   const idea = req.body.idea;
   if (!idea) return res.status(400).json({ error: "No idea provided" });
 
-  const aiResponse = await callGemini(`Analyze this business idea and highlight hidden assumptions or potential flaws: "${idea}"`);
+  // AI ile yorum
+  const aiResult = await callGemini(
+    `Analyze this business idea for hidden assumptions and potential risks: "${idea}"`
+  );
 
+  // JSON dosyaya kaydet
   let ideas = [];
   if (fs.existsSync(IDEAS_FILE)) {
     ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
   }
-  ideas.push({ idea, aiResponse, date: new Date() });
+  ideas.push({ idea, aiResult, date: new Date() });
   fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
 
-  res.json({ result: aiResponse });
+  res.json({ result: aiResult });
 });
 
-// -----------------------------
 // Form 2: Reality Collider
-// -----------------------------
 app.post("/reality-collision", async (req, res) => {
   const refinedIdea = req.body.refined_idea;
   const previousResult = req.body.previous_result;
@@ -65,30 +65,24 @@ app.post("/reality-collision", async (req, res) => {
     return res.status(400).json({ error: "Missing data" });
   }
 
-  const aiResponse = await callGemini(
-    `Analyze this refined business idea for real-world risks, market constraints, and why it may fail: "${refinedIdea}". Previous hypothesis test: "${previousResult}"`
+  const aiResult = await callGemini(
+    `Analyze this refined business idea for real-world feasibility, risks, and market challenges. Base your analysis on the previous result: "${previousResult}". Idea: "${refinedIdea}"`
   );
 
   let ideas = [];
   if (fs.existsSync(IDEAS_FILE)) {
     ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
   }
-  ideas.push({ refinedIdea, previousResult, aiResponse, date: new Date() });
+  ideas.push({ refinedIdea, previousResult, aiResult, date: new Date() });
   fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
 
-  res.json({ result: aiResponse });
+  res.json({ result: aiResult });
 });
 
-// -----------------------------
-// Health Check
-// -----------------------------
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
 
-// -----------------------------
-// Start Server
-// -----------------------------
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
