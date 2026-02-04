@@ -1,13 +1,39 @@
 import express from "express";
 import fs from "fs";
 import cors from "cors";
-import fetch from "node-fetch"; // AI çağrısı için
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const IDEAS_FILE = "./ideas.json";
+
+// Helper: Google Gemini çağrısı
+async function callGemini(prompt) {
+  try {
+    const resp = await fetch("https://gemini.googleapis.com/v1beta2/responses:generate", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${process.env.GOOGLE_GEMINI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: "gemini-1.5-flash",
+        prompt: [
+          {
+            content: prompt,
+            type: "text"
+          }
+        ]
+      })
+    });
+    const data = await resp.json();
+    return data.candidates?.[0]?.content || "AI yanıtı alınamadı";
+  } catch (err) {
+    console.error(err);
+    return "AI işleme sırasında hata oluştu.";
+  }
+}
 
 // -----------------------------
 // Form 1: Hypothesis Tester
@@ -16,27 +42,8 @@ app.post("/decision-stress-test", async (req, res) => {
   const idea = req.body.idea;
   if (!idea) return res.status(400).json({ error: "No idea provided" });
 
-  // AI mantığı burada çalışacak: Varsayım çürütme
-  let aiResponse;
-  try {
-    const aiRequest = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        input: `Analyze this business idea and highlight hidden assumptions or potential flaws: "${idea}"`
-      })
-    });
-    const aiData = await aiRequest.json();
-    aiResponse = aiData.output_text || "AI response not available";
-  } catch (err) {
-    aiResponse = "AI processing failed, please try again later.";
-  }
+  const aiResponse = await callGemini(`Analyze this business idea and highlight hidden assumptions or potential flaws: "${idea}"`);
 
-  // ideas.json kaydı
   let ideas = [];
   if (fs.existsSync(IDEAS_FILE)) {
     ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
@@ -58,27 +65,10 @@ app.post("/reality-collision", async (req, res) => {
     return res.status(400).json({ error: "Missing data" });
   }
 
-  // AI mantığı burada çalışacak: Gerçek dünya riskleri ve başarı analizi
-  let aiResponse;
-  try {
-    const aiRequest = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        input: `Analyze this refined business idea for real-world risks, market constraints, and why it may fail: "${refinedIdea}". Previous hypothesis test: "${previousResult}"`
-      })
-    });
-    const aiData = await aiRequest.json();
-    aiResponse = aiData.output_text || "AI response not available";
-  } catch (err) {
-    aiResponse = "AI processing failed, please try again later.";
-  }
+  const aiResponse = await callGemini(
+    `Analyze this refined business idea for real-world risks, market constraints, and why it may fail: "${refinedIdea}". Previous hypothesis test: "${previousResult}"`
+  );
 
-  // ideas.json kaydı
   let ideas = [];
   if (fs.existsSync(IDEAS_FILE)) {
     ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
