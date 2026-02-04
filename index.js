@@ -8,22 +8,7 @@ app.use(express.json());
 
 const IDEAS_FILE = "./ideas.json";
 
-// --- Mevcut /submit-idea endpoint (koruyoruz) ---
-app.post("/submit-idea", (req, res) => {
-  const idea = req.body.idea;
-  if (!idea) return res.status(400).json({ error: "No idea provided" });
-
-  let ideas = [];
-  if (fs.existsSync(IDEAS_FILE)) {
-    ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
-  }
-
-  ideas.push({ idea, date: new Date() });
-  fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
-  res.json({ status: "success", idea });
-});
-
-// --- Form 1: Hypothesis Tester ---
+// Form 1: Hypothesis Tester
 app.post("/decision-stress-test", (req, res) => {
   const idea = req.body.idea;
   if (!idea) return res.status(400).json({ error: "No idea provided" });
@@ -32,14 +17,16 @@ app.post("/decision-stress-test", (req, res) => {
   if (fs.existsSync(IDEAS_FILE)) {
     ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
   }
+
   ideas.push({ idea, date: new Date() });
   fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
 
-  // Shopify ile uyumlu JSON response
-  res.json({ result: `Received idea: ${idea}` });
+  // AI mantığı master prompt tarafından yürütülüyor
+  // Shopify ile uyumlu JSON formatı
+  res.json({ result: `Hypothesis test for idea: "${idea}". Master prompt yorumları burada.` });
 });
 
-// --- Form 2: Reality Collider ---
+// Form 2: Reality Collider
 app.post("/reality-collision", (req, res) => {
   const refinedIdea = req.body.refined_idea;
   const previousResult = req.body.previous_result;
@@ -52,14 +39,17 @@ app.post("/reality-collision", (req, res) => {
   if (fs.existsSync(IDEAS_FILE)) {
     ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
   }
+
   ideas.push({ refinedIdea, previousResult, date: new Date() });
   fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
 
-  // Shopify ile uyumlu JSON response
-  res.json({ result: `Refined idea: ${refinedIdea}, based on previous: ${previousResult}` });
+  // AI mantığı master prompt tarafından yürütülüyor
+  res.json({
+    result: `Reality collision for idea: "${refinedIdea}", based on previous: "${previousResult}". Master prompt detaylı risk ve başarı analizi burada.`
+  });
 });
 
-// --- Basit health check ---
+// Health check
 app.get("/", (req, res) => {
   res.send("Server is running");
 });
