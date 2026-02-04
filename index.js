@@ -1,89 +1,63 @@
-import express from "express";
-import fs from "fs";
-import cors from "cors";
+import express from 'express';
+import bodyParser from 'body-parser';
+import fetch from 'node-fetch';
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+const PORT = process.env.PORT || 10000;
 
-const IDEAS_FILE = "./ideas.json";
+app.use(bodyParser.json());
 
-// Gemini 1.5 Flash API çağırma fonksiyonu
-async function callGemini(prompt) {
+// Güvenli Gemini çağırma fonksiyonu
+async function callGemini(promptText) {
   try {
     const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText",
+      'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText',
       {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${process.env.GOOGLE_GEMINI_API_KEY}`,
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.GOOGLE_GEMINI_API_KEY}`
         },
-        body: JSON.stringify({
-          prompt: { text: prompt },
-          temperature: 0.7,
-          maxOutputTokens: 512,
-        }),
+        body: JSON.stringify({ prompt: { text: promptText } })
       }
     );
 
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.[0]?.text || "AI yanıtı alınamadı";
-  } catch (error) {
-    console.error("Gemini API error:", error);
-    return "AI işleme sırasında hata oluştu.";
+    const data = await response.json().catch(() => null);
+
+    if (!data || data.error || !data.candidates) {
+      console.error('Gemini API hatası veya geçersiz JSON', data);
+      return 'AI işleme sırasında hata oluştu.';
+    }
+
+    // Normal durumda text döndür
+    return data.candidates[0].content[0].text || 'AI işleme sırasında hata oluştu.';
+  } catch (err) {
+    console.error('Gemini çağrısı başarısız:', err);
+    return 'AI işleme sırasında hata oluştu.';
   }
 }
 
-// Form 1: Hypothesis Tester
-app.post("/decision-stress-test", async (req, res) => {
-  const idea = req.body.idea;
-  if (!idea) return res.status(400).json({ error: "No idea provided" });
+// Decision-Stress-Test endpoint
+app.post('/decision-stress-test', async (req, res) => {
+  const { idea } = req.body;
+  if (!idea) return res.status(400).json({ result: 'Idea alanı gerekli' });
 
-  // AI ile yorum
-  const aiResult = await callGemini(
-    `Analyze this business idea for hidden assumptions and potential risks: "${idea}"`
+  const result = await callGemini(`Hypothesis test for idea: "${idea}"`);
+  res.json({ result });
+});
+
+// Reality-Collision endpoint
+app.post('/reality-collision', async (req, res) => {
+  const { refined_idea, previous_result } = req.body;
+  if (!refined_idea || !previous_result)
+    return res.status(400).json({ result: 'refined_idea ve previous_result gerekli' });
+
+  const result = await callGemini(
+    `Reality collision for idea: "${refined_idea}", based on previous: "${previous_result}"`
   );
-
-  // JSON dosyaya kaydet
-  let ideas = [];
-  if (fs.existsSync(IDEAS_FILE)) {
-    ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
-  }
-  ideas.push({ idea, aiResult, date: new Date() });
-  fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
-
-  res.json({ result: aiResult });
+  res.json({ result });
 });
 
-// Form 2: Reality Collider
-app.post("/reality-collision", async (req, res) => {
-  const refinedIdea = req.body.refined_idea;
-  const previousResult = req.body.previous_result;
-
-  if (!refinedIdea || !previousResult) {
-    return res.status(400).json({ error: "Missing data" });
-  }
-
-  const aiResult = await callGemini(
-    `Analyze this refined business idea for real-world feasibility, risks, and market challenges. Base your analysis on the previous result: "${previousResult}". Idea: "${refinedIdea}"`
-  );
-
-  let ideas = [];
-  if (fs.existsSync(IDEAS_FILE)) {
-    ideas = JSON.parse(fs.readFileSync(IDEAS_FILE, "utf-8"));
-  }
-  ideas.push({ refinedIdea, previousResult, aiResult, date: new Date() });
-  fs.writeFileSync(IDEAS_FILE, JSON.stringify(ideas, null, 2));
-
-  res.json({ result: aiResult });
-});
-
-app.get("/", (req, res) => {
-  res.send("Server is running");
-});
-
-const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
