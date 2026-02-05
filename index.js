@@ -1,11 +1,13 @@
 import express from "express";
 import bodyParser from "body-parser";
+import cors from "cors";
 import { GoogleAuth } from "google-auth-library";
 
 const app = express();
 app.use(bodyParser.json());
+app.use(cors());
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 // 🔐 Service Account Auth
 const auth = new GoogleAuth({
@@ -13,6 +15,7 @@ const auth = new GoogleAuth({
   scopes: ["https://www.googleapis.com/auth/cloud-platform"],
 });
 
+// 🔹 Gemini API çağrısı fonksiyonu
 async function callGemini(prompt) {
   const client = await auth.getClient();
   const accessToken = await client.getAccessToken();
@@ -39,7 +42,12 @@ async function callGemini(prompt) {
   return res.json();
 }
 
-// 🔹 decision-stress-test
+// 🔹 Test endpoint (server çalışıyor mu kontrolü)
+app.get("/healthz", (req, res) => {
+  res.json({ status: "ok", message: "Reality engine running!" });
+});
+
+// 🔹 decision-stress-test endpoint
 app.post("/decision-stress-test", async (req, res) => {
   const { idea } = req.body;
 
@@ -48,12 +56,16 @@ app.post("/decision-stress-test", async (req, res) => {
   }
 
   const prompt = `Stress-test this business idea brutally:\n\n${idea}`;
-  const result = await callGemini(prompt);
-
-  res.json(result);
+  try {
+    const result = await callGemini(prompt);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Gemini API error", details: err.message });
+  }
 });
 
-// 🔹 reality-collision
+// 🔹 reality-collision endpoint
 app.post("/reality-collision", async (req, res) => {
   const { refined_idea, previous_result } = req.body;
 
@@ -69,8 +81,18 @@ Now collide this refined idea with reality:
 ${refined_idea}
 `;
 
-  const result = await callGemini(prompt);
-  res.json(result);
+  try {
+    const result = await callGemini(prompt);
+    res.json(result);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Gemini API error", details: err.message });
+  }
+});
+
+// 🔹 Kök URL’ye de basit mesaj
+app.get("/", (req, res) => {
+  res.send("Reality engine is live. Use /healthz to check status.");
 });
 
 app.listen(PORT, () => {
