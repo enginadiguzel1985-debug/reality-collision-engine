@@ -1,63 +1,78 @@
-import express from 'express';
-import bodyParser from 'body-parser';
-import fetch from 'node-fetch';
+import express from "express";
+import bodyParser from "body-parser";
+import { GoogleAuth } from "google-auth-library";
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-
 app.use(bodyParser.json());
 
-// Güvenli Gemini çağırma fonksiyonu
-async function callGemini(promptText) {
-  try {
-    const response = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta2/models/gemini-1.5-flash:generateText',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${process.env.GOOGLE_GEMINI_API_KEY}`
-        },
-        body: JSON.stringify({ prompt: { text: promptText } })
-      }
-    );
+const PORT = process.env.PORT || 3000;
 
-    const data = await response.json().catch(() => null);
-
-    if (!data || data.error || !data.candidates) {
-      console.error('Gemini API hatası veya geçersiz JSON', data);
-      return 'AI işleme sırasında hata oluştu.';
-    }
-
-    // Normal durumda text döndür
-    return data.candidates[0].content[0].text || 'AI işleme sırasında hata oluştu.';
-  } catch (err) {
-    console.error('Gemini çağrısı başarısız:', err);
-    return 'AI işleme sırasında hata oluştu.';
-  }
-}
-
-// Decision-Stress-Test endpoint
-app.post('/decision-stress-test', async (req, res) => {
-  const { idea } = req.body;
-  if (!idea) return res.status(400).json({ result: 'Idea alanı gerekli' });
-
-  const result = await callGemini(`Hypothesis test for idea: "${idea}"`);
-  res.json({ result });
+// 🔐 Service Account Auth
+const auth = new GoogleAuth({
+  credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
+  scopes: ["https://www.googleapis.com/auth/cloud-platform"],
 });
 
-// Reality-Collision endpoint
-app.post('/reality-collision', async (req, res) => {
-  const { refined_idea, previous_result } = req.body;
-  if (!refined_idea || !previous_result)
-    return res.status(400).json({ result: 'refined_idea ve previous_result gerekli' });
+async function callGemini(prompt) {
+  const client = await auth.getClient();
+  const accessToken = await client.getAccessToken();
 
-  const result = await callGemini(
-    `Reality collision for idea: "${refined_idea}", based on previous: "${previous_result}"`
+  const res = await fetch(
+    "https://us-central1-aiplatform.googleapis.com/v1/projects/gen-lang-client-0366781740/locations/us-central1/publishers/google/models/gemini-1.5-pro:generateContent",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: prompt }],
+          },
+        ],
+      }),
+    }
   );
-  res.json({ result });
+
+  return res.json();
+}
+
+// 🔹 decision-stress-test
+app.post("/decision-stress-test", async (req, res) => {
+  const { idea } = req.body;
+
+  if (!idea) {
+    return res.status(400).json({ error: "idea is required" });
+  }
+
+  const prompt = `Stress-test this business idea brutally:\n\n${idea}`;
+  const result = await callGemini(prompt);
+
+  res.json(result);
+});
+
+// 🔹 reality-collision
+app.post("/reality-collision", async (req, res) => {
+  const { refined_idea, previous_result } = req.body;
+
+  if (!refined_idea || !previous_result) {
+    return res.status(400).json({ error: "missing fields" });
+  }
+
+  const prompt = `
+Original analysis:
+${previous_result}
+
+Now collide this refined idea with reality:
+${refined_idea}
+`;
+
+  const result = await callGemini(prompt);
+  res.json(result);
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Reality engine running on port ${PORT}`);
 });
