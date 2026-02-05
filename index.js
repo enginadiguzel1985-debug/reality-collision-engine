@@ -1,40 +1,31 @@
 import express from "express";
 import cors from "cors";
 import fs from "fs";
-import { PredictionServiceClient } from "@google-cloud/aiplatform";
+import path from "path";
+import {TextGenerationModel, GoogleAuth} from "@google-ai/generative";
+
+// JSON key’in path’i
+const KEY_PATH = path.join(process.cwd(), "service-account.json"); // Render'e upload ettiğin JSON key
+process.env.GOOGLE_APPLICATION_CREDENTIALS = KEY_PATH;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Servis hesabı JSON içeriğini geçici dosya olarak kaydet
-const keyJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
-fs.writeFileSync("/tmp/vertex-key.json", keyJson);
-
-// Vertex AI client
-const client = new PredictionServiceClient({
-  keyFile: "/tmp/vertex-key.json",
+// Generative AI client
+const model = new TextGenerationModel({
+  model: "models/text-bison-001", // Gemini 2.5 Flash modeli, text tabanlı
 });
 
-// Helper function to call Gemini 2.5 Flash model
-async function callGemini(refinedIdea, previousResult = "") {
-  const project = "gen-lang-client-0366781740";
-  const location = "us-central1";
-  const model = "gemini-2.5-flash";
-
-  const request = {
-    endpoint: `projects/${project}/locations/${location}/publishers/google/models/${model}`,
-    instances: [
-      {
-        content: refinedIdea,
-        previous_result: previousResult
-      }
-    ],
-  };
-
+// Helper function
+async function callGemini(input, previousResult = "") {
   try {
-    const [response] = await client.predict(request);
-    return response.predictions[0];
+    const response = await model.generateText({
+      prompt: `${previousResult}\n\nUser idea: ${input}`,
+      temperature: 0.7,
+      maxOutputTokens: 500,
+    });
+    return response.candidates[0].content;
   } catch (error) {
     console.error("Gemini call error:", error);
     throw error;
