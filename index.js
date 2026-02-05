@@ -1,18 +1,26 @@
 import express from "express";
 import cors from "cors";
-import {PredictionServiceClient} from "@google-cloud/aiplatform";
+import fs from "fs";
+import { PredictionServiceClient } from "@google-cloud/aiplatform";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const client = new PredictionServiceClient();
+// Servis hesabı JSON içeriğini geçici dosya olarak kaydet
+const keyJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+fs.writeFileSync("/tmp/vertex-key.json", keyJson);
+
+// Vertex AI client
+const client = new PredictionServiceClient({
+  keyFile: "/tmp/vertex-key.json",
+});
 
 // Helper function to call Gemini 2.5 Flash model
 async function callGemini(refinedIdea, previousResult = "") {
-  const project = "gen-lang-client-0366781740"; // senin GCP projen
-  const location = "us-central1"; // bölge
-  const model = "gemini-2.5-flash"; // tavsiye edilen model
+  const project = "gen-lang-client-0366781740";
+  const location = "us-central1";
+  const model = "gemini-2.5-flash";
 
   const request = {
     endpoint: `projects/${project}/locations/${location}/publishers/google/models/${model}`,
@@ -26,7 +34,6 @@ async function callGemini(refinedIdea, previousResult = "") {
 
   try {
     const [response] = await client.predict(request);
-    // response.predictions[0] modeli cevabı döner
     return response.predictions[0];
   } catch (error) {
     console.error("Gemini call error:", error);
