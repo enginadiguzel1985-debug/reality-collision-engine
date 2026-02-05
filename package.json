@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "express": "^4.19.2",
+    "cors": "^2.8.5",
     "google-auth-library": "^9.10.0",
-    "cors": "^2.8.5"
+    "@google-cloud/aiplatform": "^4.1.0"
   }
 }
