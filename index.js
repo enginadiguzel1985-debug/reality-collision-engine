@@ -1,100 +1,63 @@
 import express from "express";
-import bodyParser from "body-parser";
 import cors from "cors";
-import { GoogleAuth } from "google-auth-library";
+import {PredictionServiceClient} from "@google-cloud/aiplatform";
 
 const app = express();
-app.use(bodyParser.json());
 app.use(cors());
+app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+const client = new PredictionServiceClient();
 
-// 🔐 Service Account Auth
-const auth = new GoogleAuth({
-  credentials: JSON.parse(process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON),
-  scopes: ["https://www.googleapis.com/auth/cloud-platform"],
-});
+// Helper function to call Gemini 2.5 Flash model
+async function callGemini(refinedIdea, previousResult = "") {
+  const project = "gen-lang-client-0366781740"; // senin GCP projen
+  const location = "us-central1"; // bölge
+  const model = "gemini-2.5-flash"; // tavsiye edilen model
 
-// 🔹 Gemini API çağrısı fonksiyonu
-async function callGemini(prompt) {
-  const client = await auth.getClient();
-  const accessToken = await client.getAccessToken();
+  const request = {
+    endpoint: `projects/${project}/locations/${location}/publishers/google/models/${model}`,
+    instances: [
+      {
+        content: refinedIdea,
+        previous_result: previousResult
+      }
+    ],
+  };
 
-  const res = await fetch(
-    "https://us-central1-aiplatform.googleapis.com/v1/projects/gen-lang-client-0366781740/locations/us-central1/publishers/google/models/gemini-1.5-pro:generateContent",
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }],
-          },
-        ],
-      }),
-    }
-  );
-
-  return res.json();
+  try {
+    const [response] = await client.predict(request);
+    // response.predictions[0] modeli cevabı döner
+    return response.predictions[0];
+  } catch (error) {
+    console.error("Gemini call error:", error);
+    throw error;
+  }
 }
 
-// 🔹 Test endpoint (server çalışıyor mu kontrolü)
+// Routes
 app.get("/healthz", (req, res) => {
   res.json({ status: "ok", message: "Reality engine running!" });
 });
 
-// 🔹 decision-stress-test endpoint
 app.post("/decision-stress-test", async (req, res) => {
   const { idea } = req.body;
-
-  if (!idea) {
-    return res.status(400).json({ error: "idea is required" });
-  }
-
-  const prompt = `Stress-test this business idea brutally:\n\n${idea}`;
   try {
-    const result = await callGemini(prompt);
-    res.json(result);
+    const prediction = await callGemini(idea);
+    res.json({ result: prediction });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Gemini API error", details: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// 🔹 reality-collision endpoint
 app.post("/reality-collision", async (req, res) => {
   const { refined_idea, previous_result } = req.body;
-
-  if (!refined_idea || !previous_result) {
-    return res.status(400).json({ error: "missing fields" });
-  }
-
-  const prompt = `
-Original analysis:
-${previous_result}
-
-Now collide this refined idea with reality:
-${refined_idea}
-`;
-
   try {
-    const result = await callGemini(prompt);
-    res.json(result);
+    const prediction = await callGemini(refined_idea, previous_result);
+    res.json({ result: prediction });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Gemini API error", details: err.message });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// 🔹 Kök URL’ye de basit mesaj
-app.get("/", (req, res) => {
-  res.send("Reality engine is live. Use /healthz to check status.");
-});
-
-app.listen(PORT, () => {
-  console.log(`Reality engine running on port ${PORT}`);
-});
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Server running on port ${port}`));
