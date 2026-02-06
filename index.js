@@ -1,45 +1,56 @@
 import express from "express";
-import fetch from "node-fetch";
 import bodyParser from "body-parser";
 
 const app = express();
 app.use(bodyParser.json());
 
-const PORT = process.env.PORT || 10000;
+// 🔹 Prompts fiziksel olarak burada tanımlı olacak
+const decisionStressPrompt = "Decision stress test prompt goes here...";
+const realityCollisionPrompt = "Reality collision prompt goes here...";
 
-// Kısaltılmış test master promptlar (sadece deploy için)
-const decisionStressPrompt = "Short test prompt for decision stress test.";
-const realityCollisionPrompt = "Short test prompt for reality collision.";
-
+// 🔹 Decision Stress Test endpoint
 app.post("/decision-stress-test", async (req, res) => {
   try {
-    const idea = req.body.idea;
-    // Render AI endpoint çağrısı
-    const response = await fetch("https://reality-collision-engine-1.onrender.com/decision-stress-test", {
+    const { idea } = req.body;
+    if (!idea) return res.status(400).json({ error: "Idea missing" });
+
+    // Node 20 global fetch kullanıyoruz
+    const response = await fetch("https://your-render-backend-endpoint/decision-stress-test", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: decisionStressPrompt, idea }),
+      body: JSON.stringify({ idea, prompt: decisionStressPrompt })
     });
+
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "AI processing failed" });
   }
 });
 
+// 🔹 Reality Collision endpoint
 app.post("/reality-collision", async (req, res) => {
   try {
-    const idea = req.body.idea;
-    const response = await fetch("https://reality-collision-engine-1.onrender.com/reality-collision", {
+    const { idea } = req.body;
+    if (!idea) return res.status(400).json({ error: "Idea missing" });
+
+    const response = await fetch("https://your-render-backend-endpoint/reality-collision", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: realityCollisionPrompt, idea }),
+      body: JSON.stringify({ idea, prompt: realityCollisionPrompt })
     });
+
     const data = await response.json();
     res.json(data);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error(err);
+    res.status(500).json({ error: "AI processing failed" });
   }
 });
 
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// 🔹 Render port binding
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
