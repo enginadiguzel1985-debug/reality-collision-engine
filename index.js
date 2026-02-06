@@ -1,58 +1,51 @@
 import express from "express";
-import bodyParser from "body-parser";
-import * as genAI from "@google/generative-ai"; // <-- bu şekilde import etmeliyiz
+import { VertexAI } from "@google-cloud/vertexai";
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
 
-// GEMINI_API_KEY Render ortam değişkeninden alınıyor
-const client = new genAI.Generative({ apiKey: process.env.GEMINI_API_KEY });
+// ENV zorunlu kontrol (master prompt kilidi)
+if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  throw new Error("GOOGLE_APPLICATION_CREDENTIALS is missing. Deploy aborted.");
+}
 
-// Kullanacağımız model
-const MODEL_NAME = "gemini-1.5-flash"; // mevcut model adı
+const vertexAI = new VertexAI({
+  project: "gen-lang-client-0366781740",
+  location: "us-central1",
+});
 
-// Health check endpoint
+const model = vertexAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+});
+
+/**
+ * Health check
+ */
 app.get("/gemini-health-check", async (req, res) => {
   try {
-    const result = await client.generateContent(MODEL_NAME, {
-      prompt: "Say hello",
+    const result = await model.generateContent("Health check ping");
+    res.json({
+      status: "ok",
+      response: result.response.text(),
     });
-    res.json({ success: true, result });
   } catch (err) {
-    console.error("Health check failed:", err.message);
-    res.json({ success: false, error: "Gemini did not respond" });
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-// Decision-stress-test endpoint
-app.post("/decision-stress-test", async (req, res) => {
-  const idea = req.body.idea;
-  if (!idea) return res.status(400).json({ error: "Missing idea in request body" });
-
-  try {
-    const response = await client.generateContent(MODEL_NAME, {
-      prompt: `Analyze the following idea and provide decision-stress insights:\n${idea}`,
-    });
-    res.json({ analysis: response });
-  } catch (err) {
-    console.error("AI ERROR:", err.message);
-    res.json({ error: "AI temporarily unavailable. Conservative fallback analysis shown." });
-  }
-});
-
-// List models endpoint
+/**
+ * List models sanity check
+ */
 app.get("/list-models", async (req, res) => {
-  try {
-    const models = await client.listModels();
-    res.json({ success: true, models });
-  } catch (err) {
-    console.error("ListModels failed:", err.message);
-    res.json({ success: false, error: err.message });
-  }
+  res.json({
+    model: "gemini-1.5-flash",
+    auth: "service-account",
+    provider: "vertex-ai",
+  });
 });
 
-// Port ayarı
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Backend running on port ${PORT}`);
 });
