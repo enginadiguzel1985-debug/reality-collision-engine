@@ -5,7 +5,7 @@ const app = express();
 app.use(express.json());
 
 /* =========================
-   🔒 ENV CHECK
+   🔒 ENV CHECK (HARD FAIL)
 ========================= */
 if (!process.env.GEMINI_API_KEY) {
   throw new Error("GEMINI_API_KEY is missing. Deploy aborted.");
@@ -14,7 +14,14 @@ if (!process.env.GEMINI_API_KEY) {
 /* =========================
    🔒 GEMINI INIT
 ========================= */
-const genAI = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+/* 
+   ⚠️ MODEL ADI: Buraya geçerli model adını koyacağız.
+   Örneğin: "gemini-1.5" veya "default". 
+   Önce /list-models endpoint’i ile bakacağız.
+*/
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 /* =========================
    🔒 MASTER PROMPTS
@@ -22,28 +29,29 @@ const genAI = new GoogleGenerativeAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // DECISION STRESS TEST PROMPT
 const DECISION_STRESS_TEST_PROMPT = `
-[Decision Stress Test Prompt — Use exactly as provided]
+[A) DECISION STRESS TEST ENGINE — SYSTEM PROMPT (v2.1)
+... (senin daha önce verdiğin tam prompt buraya gelecek)
 USER INPUT:
 {{USER_INPUT}}
-]`;
+]
+`;
 
 // REALITY COLLISION PROMPT
 const REALITY_COLLISION_PROMPT = `
-[Reality Collision Prompt — Use exactly as provided]
+[REALITY COLLISION ENGINE — SYSTEM PROMPT (v1.0)
+... (senin daha önce verdiğin tam prompt buraya gelecek)
 USER INPUT:
 {{USER_INPUT}}
-]`;
+]
+`;
 
 /* =========================
    🧠 AI CALL WRAPPER
 ========================= */
 async function runGemini(prompt, idea) {
   try {
-    // model olarak default generative model kullanıyoruz
-    const model = genAI.getGenerativeModel({ model: "default" });
-
     const result = await model.generateContent(`${prompt}\n\nIdea:\n${idea}`);
-    const response = result.response?.text?.();
+    const response = result.response.text();
 
     if (!response || response.trim().length === 0) {
       throw new Error("Empty AI response");
@@ -99,16 +107,28 @@ app.post("/reality-collision", async (req, res) => {
 });
 
 /* =========================
-   ✅ HEALTH CHECK
+   🔍 HEALTH CHECK
 ========================= */
 app.get("/gemini-health-check", async (req, res) => {
   try {
-    const model = genAI.getGenerativeModel({ model: "default" });
-    await model.generateContent("Say hello");
+    const result = await model.generateContent("Say hello");
     res.json({ success: true });
   } catch (err) {
     console.error("Health check failed:", err.message);
     res.json({ success: false, error: "Gemini did not respond" });
+  }
+});
+
+/* =========================
+   📄 LIST MODELS
+========================= */
+app.get("/list-models", async (req, res) => {
+  try {
+    const models = await genAI.listModels();
+    res.json({ success: true, models });
+  } catch (err) {
+    console.error("ListModels failed:", err.message);
+    res.json({ success: false, error: err.message });
   }
 });
 
