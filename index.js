@@ -4,62 +4,61 @@ const app = express();
 app.use(express.json());
 
 /* ===============================
-   🔒 HARD FAIL SAFETY CHECKS
+   🔒 HARD FAIL CHECKS
 ================================ */
 
-if (!process.env.OPENAI_API_KEY) {
-  throw new Error("OPENAI_API_KEY is missing. Deploy blocked.");
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error("GEMINI_API_KEY is missing. Deploy blocked.");
 }
 
 /* ===============================
-   🔒 MASTER PROMPTS (SHORT TEST VERSION)
-   (UZUN HALİ SONRA GERİ EKLENECEK)
+   🔒 MASTER PROMPTS (SHORT TEST)
 ================================ */
 
 const DECISION_STRESS_TEST_PROMPT = `
-You are an AI that brutally stress-tests business ideas.
-Point out logical gaps, unrealistic assumptions, and hidden risks.
-Be direct and factual.
+You brutally stress-test business ideas.
+Expose false assumptions, weak logic, and structural risks.
+Be direct. No motivation.
 `;
 
 const REALITY_COLLISION_PROMPT = `
-You are an AI that collides ideas with real-world constraints.
-Evaluate feasibility, market friction, and execution risk.
-No motivation. No optimism. Reality only.
+You collide ideas with real-world constraints.
+Evaluate feasibility, execution friction, and market reality.
+No optimism. Reality only.
 `;
 
 if (!DECISION_STRESS_TEST_PROMPT || !REALITY_COLLISION_PROMPT) {
-  throw new Error("Master prompts are missing. Deploy blocked.");
+  throw new Error("Master prompts missing. Deploy blocked.");
 }
 
 /* ===============================
-   🔧 AI CALL FUNCTION
+   🔧 GEMINI CALL
 ================================ */
 
-async function callAI(prompt, idea) {
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: prompt },
-        { role: "user", content: idea }
-      ],
-      temperature: 0.2
-    })
-  });
+async function callGemini(prompt, idea) {
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: `${prompt}\n\nIDEA:\n${idea}` }]
+          }
+        ]
+      })
+    }
+  );
 
   if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`AI API error: ${errText}`);
+    const err = await response.text();
+    throw new Error(err);
   }
 
   const data = await response.json();
-  return data.choices[0].message.content;
+  return data.candidates[0].content.parts[0].text;
 }
 
 /* ===============================
@@ -69,11 +68,9 @@ async function callAI(prompt, idea) {
 app.post("/decision-stress-test", async (req, res) => {
   try {
     const { idea } = req.body;
-    if (!idea) {
-      return res.status(400).json({ error: "Idea is required." });
-    }
+    if (!idea) return res.status(400).json({ error: "Idea required." });
 
-    const result = await callAI(DECISION_STRESS_TEST_PROMPT, idea);
+    const result = await callGemini(DECISION_STRESS_TEST_PROMPT, idea);
     res.json({ result });
 
   } catch (err) {
@@ -85,11 +82,9 @@ app.post("/decision-stress-test", async (req, res) => {
 app.post("/reality-collision", async (req, res) => {
   try {
     const { idea } = req.body;
-    if (!idea) {
-      return res.status(400).json({ error: "Idea is required." });
-    }
+    if (!idea) return res.status(400).json({ error: "Idea required." });
 
-    const result = await callAI(REALITY_COLLISION_PROMPT, idea);
+    const result = await callGemini(REALITY_COLLISION_PROMPT, idea);
     res.json({ result });
 
   } catch (err) {
@@ -99,7 +94,7 @@ app.post("/reality-collision", async (req, res) => {
 });
 
 /* ===============================
-   🌐 SERVER START
+   🌐 SERVER
 ================================ */
 
 const PORT = process.env.PORT || 10000;
