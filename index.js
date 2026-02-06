@@ -1,15 +1,15 @@
 import express from "express";
 import bodyParser from "body-parser";
-import { Generative } from "@google/generative-ai";
+import * as genAI from "@google/generative-ai"; // <-- bu şekilde import etmeliyiz
 
 const app = express();
 app.use(bodyParser.json());
 
 // GEMINI_API_KEY Render ortam değişkeninden alınıyor
-const client = new Generative({ apiKey: process.env.GEMINI_API_KEY });
+const client = new genAI.Generative({ apiKey: process.env.GEMINI_API_KEY });
 
 // Kullanacağımız model
-const MODEL_NAME = "gemini-1.5-flash"; // veya mevcut model adı
+const MODEL_NAME = "gemini-1.5-flash"; // mevcut model adı
 
 // Health check endpoint
 app.get("/gemini-health-check", async (req, res) => {
@@ -40,7 +40,7 @@ app.post("/decision-stress-test", async (req, res) => {
   }
 });
 
-// Optional: List models endpoint
+// List models endpoint
 app.get("/list-models", async (req, res) => {
   try {
     const models = await client.listModels();
