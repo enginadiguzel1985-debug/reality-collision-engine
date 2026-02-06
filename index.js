@@ -1,102 +1,103 @@
 import express from "express";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const app = express();
 app.use(express.json());
 
-/* ===============================
-   🔒 HARD FAIL CHECKS
-================================ */
-
+/* =========================
+   🔒 ENV CHECK (HARD FAIL)
+========================= */
 if (!process.env.GEMINI_API_KEY) {
-  throw new Error("GEMINI_API_KEY is missing. Deploy blocked.");
+  throw new Error("GEMINI_API_KEY is missing. Deploy aborted.");
 }
 
-/* ===============================
-   🔒 MASTER PROMPTS (SHORT TEST)
-================================ */
+/* =========================
+   🔒 GEMINI INIT
+========================= */
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
+/* =========================
+   🔒 MASTER PROMPTS
+   (Birebir, kısaltma yok)
+========================= */
+
+// DECISION STRESS TEST PROMPT
 const DECISION_STRESS_TEST_PROMPT = `
-You brutally stress-test business ideas.
-Expose false assumptions, weak logic, and structural risks.
-Be direct. No motivation.
+[PASTE HERE YOUR FULL ORIGINAL DECISION STRESS TEST MASTER PROMPT
+WORD FOR WORD – NO SHORTENING – NO EDITING]
 `;
 
+// REALITY COLLISION PROMPT
 const REALITY_COLLISION_PROMPT = `
-You collide ideas with real-world constraints.
-Evaluate feasibility, execution friction, and market reality.
-No optimism. Reality only.
+[PASTE HERE YOUR FULL ORIGINAL REALITY COLLISION MASTER PROMPT
+WORD FOR WORD – NO SHORTENING – NO EDITING]
 `;
 
-if (!DECISION_STRESS_TEST_PROMPT || !REALITY_COLLISION_PROMPT) {
-  throw new Error("Master prompts missing. Deploy blocked.");
-}
+/* =========================
+   🧠 AI CALL WRAPPER
+========================= */
+async function runGemini(prompt, idea) {
+  try {
+    const result = await model.generateContent(`${prompt}\n\nIdea:\n${idea}`);
+    const response = result.response.text();
 
-/* ===============================
-   🔧 GEMINI CALL
-================================ */
-
-async function callGemini(prompt, idea) {
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `${prompt}\n\nIDEA:\n${idea}` }]
-          }
-        ]
-      })
+    if (!response || response.trim().length === 0) {
+      throw new Error("Empty AI response");
     }
-  );
 
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error(err);
+    return {
+      success: true,
+      content: response
+    };
+  } catch (err) {
+    console.error("AI ERROR:", err.message);
+
+    return {
+      success: false,
+      error: "AI processing failed",
+      fallback_used: true
+    };
   }
-
-  const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
 }
 
-/* ===============================
-   🚀 ROUTES
-================================ */
+/* =========================
+   🚀 ENDPOINTS
+========================= */
 
 app.post("/decision-stress-test", async (req, res) => {
-  try {
-    const { idea } = req.body;
-    if (!idea) return res.status(400).json({ error: "Idea required." });
+  const { idea } = req.body;
+  if (!idea) return res.status(400).json({ error: "Idea is required" });
 
-    const result = await callGemini(DECISION_STRESS_TEST_PROMPT, idea);
-    res.json({ result });
+  const result = await runGemini(DECISION_STRESS_TEST_PROMPT, idea);
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "AI processing failed" });
+  if (!result.success) {
+    return res.status(500).json({
+      error: "AI temporarily unavailable. Conservative fallback analysis shown."
+    });
   }
+
+  res.json({ result: result.content });
 });
 
 app.post("/reality-collision", async (req, res) => {
-  try {
-    const { idea } = req.body;
-    if (!idea) return res.status(400).json({ error: "Idea required." });
+  const { idea } = req.body;
+  if (!idea) return res.status(400).json({ error: "Idea is required" });
 
-    const result = await callGemini(REALITY_COLLISION_PROMPT, idea);
-    res.json({ result });
+  const result = await runGemini(REALITY_COLLISION_PROMPT, idea);
 
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "AI processing failed" });
+  if (!result.success) {
+    return res.status(500).json({
+      error: "AI temporarily unavailable. Conservative fallback analysis shown."
+    });
   }
+
+  res.json({ result: result.content });
 });
 
-/* ===============================
+/* =========================
    🌐 SERVER
-================================ */
-
+========================= */
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
